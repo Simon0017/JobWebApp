@@ -1,0 +1,1 @@
+'''For function that parses the data before the app.py can return it'''
