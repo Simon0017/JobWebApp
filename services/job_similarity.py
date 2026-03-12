@@ -1,6 +1,6 @@
-import redis
 from JobPostingWebApp.models.job_model import job_table
 from JobPostingWebApp.models.sql_alchemy_settings import engine
+from JobPostingWebApp.models.connect_to_redis import redis_connect
 from sqlalchemy import select
 import pandas as pd
 from sentence_transformers import SentenceTransformer
@@ -18,7 +18,7 @@ class JobSimilarityAlgo:
         self.redis_conn = None
     
     def get_all_rows(self):
-        query = select(job_table).order_by(job_table.c.id).limit(200)
+        query = select(job_table).order_by(job_table.c.id)
 
         with engine.connect() as conn:
             result  = conn.execute(query)
@@ -54,12 +54,7 @@ class JobSimilarityAlgo:
         return self.df.iloc[top_similar_idxes]
     
     def connect_to_redis(self):
-        self.redis_conn = redis.Redis(
-            host="localhost",
-            port=6379,
-            db=0,
-            decode_responses=True
-        )
+        self.redis_conn = redis_connect()
 
         print("[Redis] Connection successfull..\n")
     
@@ -72,6 +67,8 @@ class JobSimilarityAlgo:
         
     def get_cached_df(self):
         df_json = self.redis_conn.get("dataframe_jobs")
+        if df_json is None:
+            return None
         return pd.read_json(df_json)
 
     def set_cached_df(self):
@@ -87,8 +84,24 @@ class JobSimilarityAlgo:
         )
 
     def get_cached_similarity_matrix(self):
-        buffer = io.BytesIO(self.redis_conn.get("sim_matrix"))
+        data = self.redis_conn.get("sim_matrix")
+        if data is None:
+            return None
+        
+        buffer = io.BytesIO(data)
         return np.load(buffer)
     
     def set_cached_similarity_matrix(self):
         self.similarity_matrix = self.get_cached_similarity_matrix()
+
+def pre_server_start():
+    obj = JobSimilarityAlgo()
+    obj.get_all_rows()
+    embeddings = obj.encode_jobs()
+    obj.compute_similarity_matrix(embeddings)
+    obj.connect_to_redis()
+    obj.cache_df()
+    obj.cache_similarity_matrix()
+
+if __name__ == "__main__":
+    pre_server_start()

@@ -4,6 +4,7 @@ from JobPostingWebApp.models.sql_alchemy_settings import engine
 from sqlalchemy import select,func,distinct
 import statistics
 from collections import Counter
+from JobPostingWebApp.services.trend_detector import SkillTrendPipeline
 
 class MarketAnalysis:
     """Class to perform market analysis"""
@@ -88,7 +89,13 @@ class MarketAnalysis:
         return type_counter
 
     def top_skills(self):
-        pass
+        # application of hyperloglog
+        skills_pipeline = SkillTrendPipeline(12)
+        skills_pipeline.run()
+
+        top_skills_unique = skills_pipeline.get_top_skills(n=5,by="volume")
+        return dict(top_skills_unique)
+
 
 
 

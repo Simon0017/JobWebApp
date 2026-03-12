@@ -21,7 +21,8 @@ def general_directory_list(start_idx,limit):
             "application_method":r[12],
             "application_deadline":r[7],
             "sites":get_companies_linked_with_title_db(str(r[1])),
-            "skills":r[10]
+            "skills":r[10],
+            "url":r[13]
         })
 
     return processed_data

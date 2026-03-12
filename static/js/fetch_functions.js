@@ -11,3 +11,28 @@ export async function get_jobs(page) {
     return data.data;
     
 }
+
+export async function get_job_evaluation(id) {
+    const response = await fetch(`/job_eval?id=${id}`);
+
+    if (!response.ok) {
+        throw new Error("Error fetching data");
+    }
+
+    const data = await response.json();
+
+    return data
+}
+
+export async function get_market_analysis() {
+    const response = await fetch("/market_analysis");
+
+    if (!response.ok) {
+        throw new Error("Error fetching data");
+    }
+
+    const data = await response.json();
+
+    return data;
+
+}

@@ -1,4 +1,4 @@
-import { get_jobs } from "./fetch_functions.js";
+import { get_jobs,get_job_evaluation,get_market_analysis } from "./fetch_functions.js";
 
 // ═══════════════════════════════════════════════════════════════
 // MOCK DATA
@@ -9,20 +9,8 @@ const SITE_CLASSES = {
   JobWebKenya:'site-jobwebkenya',Fuzu:'site-fuzu',Pigiame:'site-pigiame'
 };
 
-let JOBS = [
-  // {id:1,title:'Senior Software Engineer',field:'Technology',company:'Safaricom PLC',posted_by:'LinkedIn',location:'Nairobi',type:'Full-time',payment:'KES 180,000–250,000/mo',date_posted:'2025-03-01',application_deadline:'2025-03-31',minimum_requirements:['5+ years software dev experience','Proficiency in Java/Kotlin or Python','Experience with microservices & cloud (AWS/GCP)','Strong knowledge of REST APIs & databases','BSc Computer Science or related field'],responsibilities:['Design and develop scalable backend services','Lead technical design reviews','Mentor junior developers','Collaborate with cross-functional teams','Ensure code quality via testing & CI/CD'],application_method:'Online portal',sites:['LinkedIn','Indeed','BrighterMonday'],skills:['Java','Python','AWS','Microservices','REST API','SQL']},
-  // {id:2,title:'Data Analyst',field:'Technology',company:'KCB Bank',posted_by:'BrighterMonday',location:'Nairobi',type:'Full-time',payment:'KES 90,000–130,000/mo',date_posted:'2025-03-03',application_deadline:'2025-03-28',minimum_requirements:['3+ years data analysis experience','Proficiency in SQL, Python or R','Experience with BI tools (Power BI/Tableau)','Strong statistical knowledge','Degree in Statistics, Math or Computer Science'],responsibilities:['Analyze large financial datasets','Build dashboards and reports','Identify trends and actionable insights','Collaborate with business units','Present findings to management'],application_method:'Email CV to hr@kcb.co.ke',sites:['BrighterMonday','LinkedIn','Fuzu'],skills:['SQL','Python','Power BI','Tableau','Statistics','Excel']},
-  // {id:3,title:'UX/UI Designer',field:'Design',company:'Cellulant',posted_by:'Fuzu',location:'Remote',type:'Remote',payment:'KES 70,000–110,000/mo',date_posted:'2025-03-04',application_deadline:'2025-04-05',minimum_requirements:['3+ years UI/UX design','Mastery of Figma & Adobe XD','Portfolio of mobile-first designs','Knowledge of design systems','Experience with user research'],responsibilities:['Create wireframes and prototypes','Conduct user research & usability testing','Maintain and evolve design system','Collaborate with engineering teams','Deliver pixel-perfect designs'],application_method:'Portfolio + CV via Fuzu',sites:['Fuzu','LinkedIn'],skills:['Figma','Adobe XD','User Research','Prototyping','CSS','Design Systems']},
-  // {id:4,title:'Marketing Manager',field:'Marketing',company:'Equity Bank',posted_by:'JobWebKenya',location:'Nairobi',type:'Full-time',payment:'KES 120,000–160,000/mo',date_posted:'2025-03-02',application_deadline:'2025-03-25',minimum_requirements:['5+ years marketing experience','Digital marketing expertise','Campaign management skills','Budget management experience','MBA preferred'],responsibilities:['Develop and execute marketing strategies','Manage digital and ATL campaigns','Track and report KPIs','Manage marketing budget','Build brand partnerships'],application_method:'Online application',sites:['JobWebKenya','Indeed','BrighterMonday','Pigiame'],skills:['Digital Marketing','SEO','Campaign Management','Brand Strategy','Analytics','Social Media']},
-  // {id:5,title:'Financial Analyst',field:'Finance',company:'Stanbic Bank',posted_by:'Indeed',location:'Nairobi',type:'Full-time',payment:'KES 100,000–150,000/mo',date_posted:'2025-03-05',application_deadline:'2025-04-10',minimum_requirements:['CPA or ACCA certified','3+ years financial analysis','Advanced Excel skills','Experience with financial modeling','BSc Finance or Accounting'],responsibilities:['Prepare financial models and forecasts','Analyze financial statements','Support investment decisions','Monthly reporting and variance analysis','Risk assessment and management'],application_method:'CV via portal',sites:['Indeed','LinkedIn'],skills:['Financial Modeling','Excel','CPA','ACCA','Risk Analysis','SQL']},
-  // {id:6,title:'DevOps Engineer',field:'Technology',company:'M-KOPA',posted_by:'LinkedIn',location:'Nairobi',type:'Full-time',payment:'KES 160,000–220,000/mo',date_posted:'2025-03-06',application_deadline:'2025-04-02',minimum_requirements:['4+ years DevOps experience','Kubernetes & Docker expertise','CI/CD pipeline management','Cloud platforms (AWS/Azure)','Infrastructure as Code (Terraform)'],responsibilities:['Maintain and improve CI/CD pipelines','Manage cloud infrastructure','Ensure system reliability & uptime','Implement security best practices','Automate deployment workflows'],application_method:'LinkedIn Apply',sites:['LinkedIn','BrighterMonday','Indeed'],skills:['Kubernetes','Docker','AWS','Terraform','CI/CD','Python']},
-  // {id:7,title:'Nurse — ICU Specialist',field:'Healthcare',company:'Nairobi Hospital',posted_by:'Pigiame',location:'Nairobi',type:'Full-time',payment:'KES 60,000–90,000/mo',date_posted:'2025-03-01',application_deadline:'2025-03-22',minimum_requirements:['Registered Nurse (NCLEX)','2+ years ICU experience','BLS & ACLS certified','Experience with ventilators','Team player'],responsibilities:['Provide critical patient care','Monitor and assess patient vitals','Administer medications per physician orders','Document patient progress','Collaborate with medical team'],application_method:'Email applications to hr@nbi-hospital.co.ke',sites:['Pigiame','JobWebKenya'],skills:['ICU Care','ACLS','BLS','Patient Assessment','Medical Documentation']},
-  // {id:8,title:'Product Manager',field:'Technology',company:'Twiga Foods',posted_by:'LinkedIn',location:'Nairobi',type:'Full-time',payment:'KES 140,000–190,000/mo',date_posted:'2025-03-07',application_deadline:'2025-04-15',minimum_requirements:['4+ years product management','Agile/Scrum experience','Data-driven decision making','Excellent communication skills','BSc + MBA preferred'],responsibilities:['Define product vision and roadmap','Prioritize features with engineering','Conduct market and user research','Track product metrics and OKRs','Coordinate cross-functional teams'],application_method:'LinkedIn Apply',sites:['LinkedIn','Fuzu','BrighterMonday'],skills:['Product Management','Agile','Scrum','Data Analysis','Roadmapping','User Research']},
-  // {id:9,title:'Sales Executive — B2B',field:'Sales',company:'Safaricom Business',posted_by:'BrighterMonday',location:'Nairobi',type:'Full-time',payment:'KES 60,000 + Commission',date_posted:'2025-03-02',application_deadline:'2025-03-20',minimum_requirements:['2+ years B2B sales experience','Strong negotiation skills','CRM knowledge (Salesforce)','Self-motivated with proven track record','Diploma or Degree in Business'],responsibilities:['Acquire new business accounts','Meet monthly and quarterly targets','Manage client relationships','Prepare sales proposals and pitches','Report sales activity in CRM'],application_method:'Online',sites:['BrighterMonday','Indeed','Pigiame','JobWebKenya'],skills:['B2B Sales','Salesforce','Negotiation','Account Management','CRM']},
-  // {id:10,title:'React Developer',field:'Technology',company:'Andela Kenya',posted_by:'LinkedIn',location:'Remote',type:'Remote',payment:'USD 2,000–4,000/mo',date_posted:'2025-03-06',application_deadline:'2025-04-20',minimum_requirements:['3+ years React.js','TypeScript proficiency','State management (Redux/Zustand)','Testing (Jest/React Testing Library)','Git and collaborative workflow'],responsibilities:['Build and maintain React applications','Write clean, tested code','Participate in code reviews','Improve frontend performance','Collaborate with global teams'],application_method:'Andela platform',sites:['LinkedIn','Indeed','Fuzu'],skills:['React','TypeScript','Redux','Jest','CSS','Node.js']},
-  // {id:11,title:'Civil Engineer — Roads',field:'Engineering',company:'Kenya National Highways',posted_by:'JobWebKenya',location:'Nationwide',type:'Contract',payment:'KES 100,000–140,000/mo',date_posted:'2025-03-03',application_deadline:'2025-04-01',minimum_requirements:['BSc Civil Engineering','EBK registered','3+ years roads/infrastructure','AutoCAD & Civil 3D','Project management experience'],responsibilities:['Design and supervise road projects','Prepare engineering drawings','Manage contractors on-site','Ensure compliance with specifications','Prepare progress reports'],application_method:'Physical application to KeNHA offices',sites:['JobWebKenya','BrighterMonday'],skills:['AutoCAD','Civil 3D','Project Management','Road Design','EBK','Surveying']},
-  // {id:12,title:'Cybersecurity Analyst',field:'Technology',company:'I&M Bank',posted_by:'LinkedIn',location:'Nairobi',type:'Full-time',payment:'KES 120,000–170,000/mo',date_posted:'2025-03-05',application_deadline:'2025-04-08',minimum_requirements:['CEH or CISSP certified','3+ years security experience','SIEM tools knowledge','Vulnerability assessment skills','BSc IT or Computer Science'],responsibilities:['Monitor security events and incidents','Conduct vulnerability assessments','Implement security policies','Respond to security incidents','Prepare security reports'],application_method:'LinkedIn Apply',sites:['LinkedIn','Indeed'],skills:['Cybersecurity','SIEM','CEH','CISSP','Network Security','Penetration Testing']},
-];
+let JOBS = [];
+let JOBS_ACC = [];
 
 // ═══════════════════════════════════════════════════════════════
 // STATE
@@ -120,12 +108,26 @@ function renderJobs() {
   renderPagination();
 }
 
+// event delegation
+const grid = document.getElementById('jobGrid');
+
+grid.addEventListener('click', function(e) {
+    // Find the closest job-card ancestor of the clicked element
+    const card = e.target.closest('.job-card');
+    if (!card || !grid.contains(card)) return;
+
+    const jobId = card.dataset.id;
+    if (jobId) {
+        openJobEval(jobId); // call your function with the job ID
+    }
+});
+
 function jobCardHTML(j) {
   const featured = j.sites.length >= 3;
   const days = daysUntil(j.application_deadline);
   const urgency = days <= 5 ? 'text-danger' : days <= 14 ? '' : 'text-muted';
   return `
-  <div class="job-card${featured?' featured':''}" onclick="openJobEval(${j.id})">
+  <div class="job-card${featured?' featured':''}" data-id="${j.id}">
     <div class="job-card-header">
       <div>
         <div class="job-title">${j.title}</div>
@@ -210,9 +212,12 @@ function openJobEval(id) {
   }, 50);
 }
 
-function loadEvaluation() {
+async function loadEvaluation() {
   const id = parseInt(document.getElementById('evalJobSelect').value);
   const j = JOBS.find(x => x.id === id) || JOBS[0];
+  
+  const data = get_job_evaluation(Number(id));
+  
 
   document.getElementById('evalTitle').textContent = j.title;
   document.getElementById('evalCompany').textContent = j.company;
@@ -255,20 +260,20 @@ function loadEvaluation() {
   document.getElementById('evalDaysLeft').textContent = d <= 0 ? '⚠ Deadline passed' : `${d} day${d>1?'s':''} remaining`;
 
   // Referral links
-  document.getElementById('evalReferrals').innerHTML = j.sites.map(s => `
+  document.getElementById('evalReferrals').innerHTML = `
     <button class="btn btn-outline" style="justify-content:space-between;width:100%;" onclick="showToast('Redirecting to ${s}...')">
-      <span><span class="site-badge ${SITE_CLASSES[s]}" style="margin-right:8px;">${s}</span> Apply Now</span>
+      <span><span class="site-badge ${SITE_CLASSES[0]}" style="margin-right:8px;">${j.url}</span> Apply Now</span>
       <span>↗</span>
-    </button>`).join('');
+    </button>`;
 
   // Ring (demand based on sites)
-  const demand = Math.round((j.sites.length / 6) * 100);
+  const demand = data.demand;
   const offset = 282.7 - (282.7 * demand / 100);
   document.getElementById('evalRingFill').setAttribute('stroke-dashoffset', offset);
   document.getElementById('evalRingVal').textContent = demand + '%';
 
   // Knowledge graph
-  drawKnowledgeGraph(j);
+  drawKnowledgeGraph(j.kgraph);
 
   // Similar jobs
   const similar = JOBS.filter(x => x.id !== j.id && (x.field === j.field || x.type === j.type)).slice(0, 4);
@@ -289,36 +294,96 @@ function loadEvaluation() {
 }
 
 function drawKnowledgeGraph(j) {
-  const container = document.getElementById('knowledgeGraph');
-  container.innerHTML = '';
+  const graphData = JSON.parse(j);
 
-  const nodes = [
-    { label: j.title.split(' ').slice(0,2).join(' '), x: 50, y: 50, size: 64, color: 'var(--c1)', textColor: '#fff' },
-    ...j.sites.slice(0,3).map((s, i) => ({ label: s, x: 18 + i * 28, y: 78, size: 44, color: 'var(--dark3)', textColor: 'var(--c2-light)', border: '1px solid var(--c1)' })),
-    ...j.skills.slice(0,5).map((sk, i) => ({ label: sk, x: 10 + i * 20, y: 20, size: 38, color: 'rgba(245,146,146,0.18)', textColor: 'var(--c4)', border: '1px solid rgba(245,146,146,0.35)' })),
-    { label: j.field, x: 80, y: 70, size: 50, color: 'rgba(131,142,217,0.2)', textColor: 'var(--c2-light)', border: '1px solid var(--c2)' },
-  ];
+  const nodes = graphData.nodes.map(d => ({ id: d.id, type: d.type }));
+  const links = graphData.links.map(l => ({ source: l.source, target: l.target }));
 
-  nodes.forEach((n, i) => {
-    const el = document.createElement('div');
-    el.className = 'graph-node';
-    el.style.cssText = `left:${n.x}%;top:${n.y}%;width:${n.size}px;height:${n.size}px;background:${n.color};color:${n.textColor};border:${n.border||'none'};transform:translate(-50%,-50%);font-size:${n.size>50?'0.65rem':'0.58rem'};`;
-    el.textContent = n.label;
-    el.title = n.label;
-    container.appendChild(el);
+  const container = document.getElementById("knowledgeGraph");
+  container.innerHTML = "";
+
+  const width = container.clientWidth;
+  const height = container.clientHeight;
+
+  const svg = d3.select("#knowledgeGraph")
+    .append("svg")
+    .attr("width", width)
+    .attr("height", height);
+
+  // Force simulation
+  const simulation = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(links).id(d => d.id).distance(120))
+    .force("charge", d3.forceManyBody().strength(-250))
+    .force("center", d3.forceCenter(width / 2, height / 2));
+
+  // Draw edges
+  const link = svg.append("g")
+    .selectAll("line")
+    .data(links)
+    .enter()
+    .append("line")
+    .attr("stroke", "#999")
+    .attr("stroke-opacity", 0.6);
+
+  // Draw nodes
+  const node = svg.append("g")
+    .selectAll("circle")
+    .data(nodes)
+    .enter()
+    .append("circle")
+    .attr("r", d => d.type === "job" ? 20 : 10)
+    .attr("fill", d => d.type === "job" ? "#ff6b6b" : "#6c8cff")
+    .call(d3.drag()
+        .on("start", dragstarted)
+        .on("drag", dragged)
+        .on("end", dragended)
+    );
+
+  // Labels
+  const labels = svg.append("g")
+    .selectAll("text")
+    .data(nodes)
+    .enter()
+    .append("text")
+    .text(d => d.id)
+    .attr("font-size", "11px")
+    .attr("dx", 12)
+    .attr("dy", ".35em");
+
+  simulation.on("tick", () => {
+
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+      node
+        .attr("cx", d => d.x)
+        .attr("cy", d => d.y);
+
+      labels
+        .attr("x", d => d.x)
+        .attr("y", d => d.y);
   });
 
-  // Draw some edges (SVG overlay)
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;pointer-events:none;';
-  const defs = `<defs><marker id="arr" markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="rgba(131,142,217,0.4)"/></marker></defs>`;
-  let lines = '';
-  [[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[0,7]].forEach(([a,b]) => {
-    if (!nodes[a] || !nodes[b]) return;
-    lines += `<line x1="${nodes[a].x}%" y1="${nodes[a].y}%" x2="${nodes[b].x}%" y2="${nodes[b].y}%" stroke="rgba(131,142,217,0.25)" stroke-width="1" stroke-dasharray="4,4" marker-end="url(#arr)"/>`;
-  });
-  svg.innerHTML = defs + lines;
-  container.appendChild(svg);
+  function dragstarted(event, d) {
+    if (!event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+  }
+
+  function dragged(event, d) {
+    d.fx = event.x;
+    d.fy = event.y;
+  }
+
+  function dragended(event, d) {
+    if (!event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+  }
+
 }
 
 let evalChartInst = null;
@@ -346,13 +411,31 @@ function drawEvalPlatformChart(j) {
 // ═══════════════════════════════════════════════════════════════
 // ANALYSIS CHARTS
 // ═══════════════════════════════════════════════════════════════
-function initAnalysisCharts() {
+function generateColors(n) {
+  const colors = [];
+
+  for (let i = 0; i < n; i++) {
+    const r = Math.floor(Math.random() * 256);
+    const g = Math.floor(Math.random() * 256);
+    const b = Math.floor(Math.random() * 256);
+
+    colors.push(`rgba(${r}, ${g}, ${b}, 0.7)`);
+  }
+
+  return colors;
+}
+
+
+async function initAnalysisCharts() {
   if (chartsInitialized.analysis) return;
   chartsInitialized.analysis = true;
 
+  const data = await get_market_analysis();
+  setMarketanalysisData(data);
+
   // Platform bar
-  const platforms = SITES;
-  const platCounts = SITES.map(s => JOBS.filter(j => j.sites.includes(s)).length);
+  const platforms = Object.keys(data.job_per_platform);
+  const platCounts = Object.values(data.job_per_platform);
   new Chart(document.getElementById('platformBarChart'), {
     type: 'bar',
     data: {
@@ -360,7 +443,7 @@ function initAnalysisCharts() {
       datasets: [{
         label: 'Jobs Listed',
         data: platCounts,
-        backgroundColor: ['#657dc4','#838ed9','#e84545','#22a86a','#ff6b35','#7b2d8b'],
+        backgroundColor: generateColors(platCounts),
         borderRadius: 6, borderSkipped: false,
       }]
     },
@@ -368,15 +451,15 @@ function initAnalysisCharts() {
   });
 
   // Field doughnut
-  const fields = [...new Set(JOBS.map(j => j.field))];
-  const fieldCounts = fields.map(f => JOBS.filter(j => j.field === f).length);
+  const fields = Object.keys(data.jobs_per_fields);
+  const fieldCounts = Object.values(data.jobs_per_fields);
   new Chart(document.getElementById('fieldDoughnut'), {
     type: 'doughnut',
     data: {
       labels: fields,
       datasets: [{
         data: fieldCounts,
-        backgroundColor: ['#657dc4','#838ed9','#f59292','#ece8e5','#22a86a','#ff6b35','#7b2d8b'],
+        backgroundColor: generateColors(fieldCounts),
         borderColor: 'var(--dark2)', borderWidth: 2,
       }]
     },
@@ -406,8 +489,8 @@ function initAnalysisCharts() {
   });
 
   // Type radar
-  const jobTypes = ['Full-time','Part-time','Contract','Remote','Internship'];
-  const typeCounts = jobTypes.map(t => JOBS.filter(j => j.type === t).length);
+  const jobTypes = Object.keys(data.job_types_distr);
+  const typeCounts = Object.values(data.job_types_distr);
   new Chart(document.getElementById('typeRadarChart'), {
     type: 'radar',
     data: {
@@ -425,10 +508,8 @@ function initAnalysisCharts() {
   });
 
   // Top skills
-  const allSkills = JOBS.flatMap(j => j.skills || []);
-  const skillCount = {};
-  allSkills.forEach(s => skillCount[s] = (skillCount[s]||0)+1);
-  const topSkills = Object.entries(skillCount).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const topSkills = Object.entries(data.top_skills)
+    .sort((a,b) => b[1] - a[1]);
   const maxCount = topSkills[0]?.[1] || 1;
   document.getElementById('topSkillsBars').innerHTML = topSkills.map(([skill, count]) => `
     <div class="progress-wrap">
@@ -440,6 +521,13 @@ function initAnalysisCharts() {
         <div class="progress-fill" style="width:${(count/maxCount*100).toFixed(0)}%"></div>
       </div>
     </div>`).join('');
+}
+
+function setMarketanalysisData(data) {
+  document.getElementById('activ-stat').innerHTML = data.active_jobs;
+  document.getElementById("plat-stat").innerHTML = data.platforms_tracked;
+  document.getElementById("multi-val").innerHTML = data.multi_listed;
+  document.getElementById("avg-dl").innerHTML = data.avg_deadline; 
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -464,9 +552,22 @@ function renderSuitSkills() {
   document.getElementById('suitSkillsList').innerHTML = suitSkills.map(s => `
     <div class="skill-chip">
       <span>${s}</span>
-      <span class="chip-remove" onclick="removeSuitSkill('${s}')">✕</span>
-    </div>`).join('');
+      <span class="chip-remove" data-skill="${s}">✕</span>
+    </div>
+  `).join('');
 }
+
+
+// event delegation
+document.getElementById("suitSkillsList").addEventListener("click", function(e) {
+
+  if (e.target.classList.contains("chip-remove")) {
+
+    const skill = e.target.dataset.skill;
+    removeSuitSkill(skill);
+
+  }
+});
 
 function runSuitability() {
   if (!suitSkills.length) {
