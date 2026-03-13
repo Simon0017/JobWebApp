@@ -2,13 +2,19 @@ from flask import Flask,render_template,jsonify,request
 from JobPostingWebApp.views.job_directories import *
 from JobPostingWebApp.services.job_evaluation import JobEvaluation
 from JobPostingWebApp.services.market_analysis import MarketAnalysis
-
+from JobPostingWebApp.services.job_suitablity import JobSuitablity,convert_df_list
+from JobPostingWebApp.models.connect_to_redis import redis_connect
+from JobPostingWebApp.services.search_algorithms import SearchAlgorithm
 
 app = Flask(__name__)
+redis_client = redis_connect()
+print('[Redis] Connection successful')
 
 @app.route('/')
 def index():
     return render_template("index_1.html")
+
+
 
 @app.route("/jobs",methods = ['GET'])
 def get_listed_jobs():
@@ -26,7 +32,7 @@ def get_listed_jobs():
 @app.route("/job_eval",methods= ["GET"])
 def job_evaluation():
     job_id = int(request.args.get("id"))
-    eval_obj = JobEvaluation(job_id)
+    eval_obj = JobEvaluation(job_id,redis_client)
     eval_obj.get_job_details()
 
     response = {}
@@ -37,9 +43,11 @@ def job_evaluation():
 
     return jsonify(response)
 
-@app.route("/market_analysis",method = ['GET'])
+
+
+@app.route("/market_analysis",methods = ['GET'])
 def market_analysis():
-    anly_obj = MarketAnalysis()
+    anly_obj = MarketAnalysis(redis_client)
     response = {}
 
     anly_obj.get_active_jobs()
@@ -55,6 +63,35 @@ def market_analysis():
     response['avg_deadline'] = anly_obj.avg_days_to_deadline
     response['platforms_tracked'] = anly_obj.platforms_tracked
     response['multi_listed'] = anly_obj.multi_listed_jobs
+
+    return jsonify(response)
+
+
+
+@app.route("/job_recommendation",methods = ["POST"])
+def job_recommendation():
+    data = request.get_json()
+
+    candidate = JobSuitablity(data,redis_client)
+    df = candidate.load_df().fillna("")
+    jobs_list = convert_df_list(df)
+    top_suggestions = candidate.suggest_based_on_score(jobs_list)
+    
+    response = {}
+
+    response["recommendations"] = top_suggestions
+
+    return jsonify(response)
+
+
+@app.route("/search",methods = ['GET'])
+def search_jobs():
+    data = request.args.get("q","")
+    response = {}
+
+    search_obj = SearchAlgorithm(redis_client)
+    results = search_obj.aggregate_search(data)
+    response["results"] = [dict(res) for res in results]
 
     return jsonify(response)
 

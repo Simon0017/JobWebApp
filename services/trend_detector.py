@@ -2,6 +2,7 @@ from collections import defaultdict
 from JobPostingWebApp.services.hyperloglog import Hyperloglog
 from JobPostingWebApp.models.connect_to_redis import redis_connect
 import json
+from redis import Redis
 
 class SkillTrendDetector:
     def __init__(self,precision = 12):
@@ -48,8 +49,8 @@ class SkillTrendDetector:
 
 
 class SkillTrendPipeline:
-    def __init__(self, precision=12):
-        self.redis_client = redis_connect()
+    def __init__(self,redis_client:Redis,precision=12,):
+        self.redis_client = redis_client
         self.detector = SkillTrendDetector(precision=precision)
 
     def load_skills_from_redis(self, pattern="job_skills:*"):
@@ -88,7 +89,7 @@ class SkillTrendPipeline:
 
 
 def pre_server_start():
-    pipline = SkillTrendPipeline()
+    pipline = SkillTrendPipeline(redis_connect())
     pipline.save_data_to_redis()
 
 if __name__ == "__main__":

@@ -6,12 +6,14 @@ from JobPostingWebApp.services.skills_extractor import extract_skills,SkillsMana
 from JobPostingWebApp.services.job_similarity import JobSimilarityAlgo
 import json
 from networkx.readwrite import json_graph
+from redis import Redis
 
 class JobEvaluation:
-    def __init__(self,job_id):
+    def __init__(self,job_id,redis_client:Redis):
         self.job_id = job_id
         self.job_details = None
         self.graph = nx.Graph()
+        self.redis_client = redis_client
 
     def get_job_details(self):
         query = select(job_table).where(job_table.c.id==self.job_id)
@@ -45,12 +47,15 @@ class JobEvaluation:
     def get_KG_data(self):#KG = Knowledge graph
         #nodes = skills
         #candidate = self
-        sk_manager = SkillsManager()
+        sk_manager = SkillsManager(self.redis_client)
         nodes = sk_manager.retrieve_job_skills_from_redis(self.job_details.get("id"))
         if nodes is None:
-            nodes = extract_skills(self.job_details.get("minimum_requirements"))
+            val_string = self.job_details.get("minimum_requirements")
+            if val_string is None:
+                val_string = ""
+            nodes = extract_skills(val_string)
         
-        candidate_node = self.job_details.get("title")
+        candidate_node = self.job_details.get("title","")
         return {
             "nodes":nodes,
             "candidate":candidate_node
@@ -58,7 +63,7 @@ class JobEvaluation:
     
 
     def contruct_KG(self):
-        data = self.extract_nodes()
+        data = self.get_KG_data()
         candidate_node = data["candidate"]
         skill_nodes = data["nodes"]
 
@@ -74,8 +79,7 @@ class JobEvaluation:
         return json.dumps(data)
 
     def get_similar_jobs(self,top_n = 5):
-        job_sim_obj = JobSimilarityAlgo()
-        job_sim_obj.connect_to_redis()
+        job_sim_obj = JobSimilarityAlgo(self.redis_client)
         job_sim_obj.set_cached_df()
         job_sim_obj.set_cached_similarity_matrix()
 
@@ -84,7 +88,7 @@ class JobEvaluation:
             embeddings = job_sim_obj.encode_jobs()
             job_sim_obj.compute_similarity_matrix(embeddings)
             
-        similar_jobs = job_sim_obj.get_similar_jobs(self.job_details.get("title"),top_n)
+        similar_jobs = job_sim_obj.get_similar_jobs(self.job_details.get("title"),top_n).fillna("")
         similar_jobs_list = similar_jobs.to_dict(orient="records")
         return similar_jobs_list
 
@@ -92,3 +96,4 @@ class JobEvaluation:
 
     def platform_listing_data(self):
         pass
+

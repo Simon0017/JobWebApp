@@ -7,15 +7,16 @@ from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 import io
+import redis
 
 class JobSimilarityAlgo:
     '''Fethes and calculates similarities between jobs'''
-    def __init__(self):
+    def __init__(self,redis_client:redis.Redis):
         self.rows_data = None
         self.df = None
         self.model = None
         self.similarity_matrix = None
-        self.redis_conn = None
+        self.redis_conn = redis_client
     
     def get_all_rows(self):
         query = select(job_table).order_by(job_table.c.id)
@@ -58,7 +59,7 @@ class JobSimilarityAlgo:
 
         print("[Redis] Connection successfull..\n")
     
-    def cache_df(self,expiration_dur = 3600): # in seconds
+    def cache_df(self,expiration_dur = 24*3600): # one day
         self.redis_conn.set(
             "dataframe_jobs",
             self.df.to_json(),
@@ -69,7 +70,7 @@ class JobSimilarityAlgo:
         df_json = self.redis_conn.get("dataframe_jobs")
         if df_json is None:
             return None
-        return pd.read_json(df_json)
+        return pd.read_json(io.StringIO(df_json))
 
     def set_cached_df(self):
         self.df = self.get_cached_df()
@@ -84,7 +85,9 @@ class JobSimilarityAlgo:
         )
 
     def get_cached_similarity_matrix(self):
-        data = self.redis_conn.get("sim_matrix")
+        r = redis.Redis(host='localhost', port=6379, decode_responses=False)
+
+        data = r.get("sim_matrix")
         if data is None:
             return None
         
@@ -95,7 +98,7 @@ class JobSimilarityAlgo:
         self.similarity_matrix = self.get_cached_similarity_matrix()
 
 def pre_server_start():
-    obj = JobSimilarityAlgo()
+    obj = JobSimilarityAlgo(redis_connect())
     obj.get_all_rows()
     embeddings = obj.encode_jobs()
     obj.compute_similarity_matrix(embeddings)

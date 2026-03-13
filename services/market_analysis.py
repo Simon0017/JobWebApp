@@ -5,11 +5,13 @@ from sqlalchemy import select,func,distinct
 import statistics
 from collections import Counter
 from JobPostingWebApp.services.trend_detector import SkillTrendPipeline
+from redis import Redis
 
 class MarketAnalysis:
     """Class to perform market analysis"""
 
-    def __init__(self):
+    def __init__(self,redis_client:Redis):
+        self.redis_client = redis_client
         self.active_jobs = 0
         self.platforms_tracked = 0
         self.multi_listed_jobs = 0
@@ -90,7 +92,7 @@ class MarketAnalysis:
 
     def top_skills(self):
         # application of hyperloglog
-        skills_pipeline = SkillTrendPipeline(12)
+        skills_pipeline = SkillTrendPipeline(self.redis_client,12)
         skills_pipeline.run()
 
         top_skills_unique = skills_pipeline.get_top_skills(n=5,by="volume")
@@ -134,21 +136,21 @@ def parse_datetime(val):
 
 # testing
 
-analysis = MarketAnalysis()
-analysis.get_active_jobs()
-analysis.get_avg_deadline()
-analysis.get_platforms_tracked()
-j_per_platform = analysis.job_per_platform()
-j_types_distr = analysis.job_types_distribution()
-j_per_field = analysis.jobs_per_field()
+# analysis = MarketAnalysis()
+# analysis.get_active_jobs()
+# analysis.get_avg_deadline()
+# analysis.get_platforms_tracked()
+# j_per_platform = analysis.job_per_platform()
+# j_types_distr = analysis.job_types_distribution()
+# j_per_field = analysis.jobs_per_field()
 
-print(f"Active jobs:\t{analysis.active_jobs}\n")
-print(f"Avg deaslines:\t{analysis.avg_days_to_deadline}\n")
-print(f"Platforms tracked:\t{analysis.platforms_tracked}\n")
-from pprint import pprint
-print("Jobs per Platform:")
-pprint(j_per_platform)
-print("\nJob Types Distribution:")
-pprint(j_types_distr)
-print("\nJobs per Field:")
-pprint(j_per_field)
+# print(f"Active jobs:\t{analysis.active_jobs}\n")
+# print(f"Avg deaslines:\t{analysis.avg_days_to_deadline}\n")
+# print(f"Platforms tracked:\t{analysis.platforms_tracked}\n")
+# from pprint import pprint
+# print("Jobs per Platform:")
+# pprint(j_per_platform)
+# print("\nJob Types Distribution:")
+# pprint(j_types_distr)
+# print("\nJobs per Field:")
+# pprint(j_per_field)

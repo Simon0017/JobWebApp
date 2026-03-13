@@ -1,4 +1,4 @@
-import { get_jobs,get_job_evaluation,get_market_analysis } from "./fetch_functions.js";
+import { get_jobs,get_job_evaluation,get_market_analysis,fetch_job_recommendations,search_jobs } from "./fetch_functions.js";
 
 // ═══════════════════════════════════════════════════════════════
 // MOCK DATA
@@ -62,6 +62,18 @@ async function switchTab(tab, navEl) {
 // ═══════════════════════════════════════════════════════════════
 // JOBS DIRECTORY
 // ═══════════════════════════════════════════════════════════════
+async function search_jobs_data(){
+  const q = document.getElementById('dirSearch').value.toLowerCase();
+
+  const data = await search_jobs(q);
+
+  filteredJobs = [...data.results];
+  
+  
+  renderJobs();
+}
+
+
 function filterJobs() {
   const q = document.getElementById('dirSearch').value.toLowerCase();
   const field = document.getElementById('filterField').value;
@@ -70,7 +82,7 @@ function filterJobs() {
   const sort = document.getElementById('filterSort').value;
 
   filteredJobs = JOBS.filter(j => {
-    const matchQ = !q || j.title.toLowerCase().includes(q) || j.company.toLowerCase().includes(q) || j.location.toLowerCase().includes(q);
+    const matchQ = !q || j.title.toLowerCase().includes(q);// || j.company.toLowerCase().includes(q) || j.location.toLowerCase().includes(q);
     const matchField = !field || j.field === field;
     const matchType = !type || j.type === type;
     const matchSite = !site || j.sites.includes(site);
@@ -123,7 +135,7 @@ grid.addEventListener('click', function(e) {
 });
 
 function jobCardHTML(j) {
-  const featured = j.sites.length >= 3;
+  const featured = true;//j.sites.length >= 3;
   const days = daysUntil(j.application_deadline);
   const urgency = days <= 5 ? 'text-danger' : days <= 14 ? '' : 'text-muted';
   return `
@@ -138,13 +150,13 @@ function jobCardHTML(j) {
     <div class="job-meta">
       <span class="meta-tag type">⚡ ${j.type}</span>
       <span class="meta-tag location">📍 ${j.location}</span>
-      <span class="meta-tag salary">💰 ${j.payment.length > 22 ? j.payment.slice(0,22)+'…' : j.payment}</span>
+      <span class="meta-tag salary">💰 ${j.payment?.length > 22 ? j.payment.slice(0,22)+'…' : j.payment}</span>
       <span class="meta-tag deadline ${urgency}">⏰ ${days <= 0 ? 'Expired' : days + 'd left'}</span>
     </div>
     <div class="job-sites-row">
       <span style="font-size:0.7rem;color:var(--text-muted);">Listed on:</span>
-      ${j.sites.map(s => `<span class="site-badge ${SITE_CLASSES[s]}">${s}</span>`).join('')}
-      <span class="sites-count">${j.sites.length} platform${j.sites.length>1?'s':''}</span>
+      ${j.sites?.map(s => `<span class="site-badge ${SITE_CLASSES[s]}">${s}</span>`).join('')}
+      <span class="sites-count">${j.sites?.length} platform${j.sites?.length>1?'s':''}</span>
     </div>
   </div>`;
 }
@@ -217,6 +229,7 @@ async function loadEvaluation() {
   const j = JOBS.find(x => x.id === id) || JOBS[0];
   
   const data = get_job_evaluation(Number(id));
+  console.log(data);
   
 
   document.getElementById('evalTitle').textContent = j.title;
@@ -241,10 +254,10 @@ async function loadEvaluation() {
 
   // Quick facts
   document.getElementById('evalQuickFacts').innerHTML = [
-    { icon: '📅', label: 'Posted', val: j.date_posted },
-    { icon: '🏢', label: 'Posted By', val: j.posted_by },
-    { icon: '📨', label: 'Apply Via', val: j.application_method.slice(0,30) },
-    { icon: '🏷', label: 'Field', val: j.field },
+    { icon: '📅', label: 'Posted', val: j.date_posted || 'Unavailable'},
+    { icon: '🏢', label: 'Posted By', val: j.posted_by || "Unavailable"},
+    { icon: '📨', label: 'Apply Via', val: j.application_method?.slice(0,30) || 'Unavailable' },
+    { icon: '🏷', label: 'Field', val: j.field ||"Unavailable" },
   ].map(f => `
     <div style="display:flex;align-items:center;gap:10px;">
       <span style="font-size:16px;">${f.icon}</span>
@@ -261,7 +274,7 @@ async function loadEvaluation() {
 
   // Referral links
   document.getElementById('evalReferrals').innerHTML = `
-    <button class="btn btn-outline" style="justify-content:space-between;width:100%;" onclick="showToast('Redirecting to ${s}...')">
+    <button class="btn btn-outline" style="justify-content:space-between;width:100%;">
       <span><span class="site-badge ${SITE_CLASSES[0]}" style="margin-right:8px;">${j.url}</span> Apply Now</span>
       <span>↗</span>
     </button>`;
@@ -273,7 +286,7 @@ async function loadEvaluation() {
   document.getElementById('evalRingVal').textContent = demand + '%';
 
   // Knowledge graph
-  drawKnowledgeGraph(j.kgraph);
+  // drawKnowledgeGraph(j.kgraph);
 
   // Similar jobs
   const similar = JOBS.filter(x => x.id !== j.id && (x.field === j.field || x.type === j.type)).slice(0, 4);
@@ -284,7 +297,7 @@ async function loadEvaluation() {
         <div class="job-company">${s.company}</div>
         <div class="job-meta" style="margin-top:8px;">
           <span class="meta-tag type">${s.type}</span>
-          <span class="sites-count">${s.sites.length} platform${s.sites.length>1?'s':''}</span>
+          
         </div>
       </div>`).join('')
     : '<div class="text-muted text-sm">No similar jobs found.</div>';
@@ -415,11 +428,8 @@ function generateColors(n) {
   const colors = [];
 
   for (let i = 0; i < n; i++) {
-    const r = Math.floor(Math.random() * 256);
-    const g = Math.floor(Math.random() * 256);
-    const b = Math.floor(Math.random() * 256);
-
-    colors.push(`rgba(${r}, ${g}, ${b}, 0.7)`);
+    const color = "#" + Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0");
+    colors.push(color);
   }
 
   return colors;
@@ -443,7 +453,7 @@ async function initAnalysisCharts() {
       datasets: [{
         label: 'Jobs Listed',
         data: platCounts,
-        backgroundColor: generateColors(platCounts),
+        backgroundColor: generateColors(Number(platCounts.length)),
         borderRadius: 6, borderSkipped: false,
       }]
     },
@@ -459,7 +469,7 @@ async function initAnalysisCharts() {
       labels: fields,
       datasets: [{
         data: fieldCounts,
-        backgroundColor: generateColors(fieldCounts),
+        backgroundColor: generateColors(Number(fieldCounts.length)),
         borderColor: 'var(--dark2)', borderWidth: 2,
       }]
     },
@@ -569,18 +579,38 @@ document.getElementById("suitSkillsList").addEventListener("click", function(e) 
   }
 });
 
-function runSuitability() {
+async function run_job_recommendations() {
+  let ed_level = document.getElementById("ed-level").value;
+  let experience_years = document.getElementById('suitExp').value;
+  let job_type = document.getElementById("job-type").value;
+  let location = document.getElementById('suitLocation').value;
+
   if (!suitSkills.length) {
     showToast('⚠ Please add at least one skill');
     return;
   }
 
-  const results = JOBS.map(j => {
-    const jobSkills = j.skills || [];
-    const matched = suitSkills.filter(s => jobSkills.some(js => js.toLowerCase().includes(s.toLowerCase())));
-    const compat = Math.round((matched.length / Math.max(suitSkills.length, 1)) * 100);
-    return { ...j, matched, compat };
-  }).filter(j => j.compat > 0).sort((a,b) => b.compat - a.compat);
+  const candidate_data = {
+      skill:suitSkills,
+      experience:experience_years || null,
+      job_type:job_type || null,
+      location:location || null,
+      education_level:ed_level || null
+  }
+
+  const data_recv = await fetch_job_recommendations(candidate_data);
+
+  runSuitability(data_recv.recommendations);
+  
+}
+
+function runSuitability(data) {
+  if (!suitSkills.length) {
+    showToast('⚠ Please add at least one skill');
+    return;
+  }
+
+  const results = data;
 
   const cont = document.getElementById('suitResults');
   if (!results.length) {
@@ -618,13 +648,12 @@ function suitabilityCardHTML(j) {
     <div style="margin-top:10px;">
       <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:6px;">Matched skills:</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px;">
-        ${j.matched.map(s => `<span class="skill-chip" style="font-size:0.65rem;padding:2px 8px;">${s}</span>`).join('')}
+        
       </div>
     </div>
     <div class="job-meta" style="margin-top:10px;">
       <span class="meta-tag type">${j.type}</span>
       <span class="meta-tag salary">${j.payment.slice(0,22)}</span>
-      <span class="sites-count">${j.sites.length} platform${j.sites.length>1?'s':''}</span>
     </div>
   </div>`;
 }
@@ -696,7 +725,10 @@ function handleClickEvents() {
   topBtns[2].addEventListener('click', () => showToast('Settings coming soon!'));
 
   // ── Directory: search + filters ───────────────────────────
-  document.getElementById('dirSearch').addEventListener('input', filterJobs);
+  document.getElementById('dirSearch').addEventListener('keydown', async(event) => {
+      if (event.key === 'Enter') await search_jobs_data();
+    }
+  );
   document.getElementById('filterField').addEventListener('change', filterJobs);
   document.getElementById('filterType').addEventListener('change', filterJobs);
   document.getElementById('filterSite').addEventListener('change', filterJobs);
@@ -715,7 +747,7 @@ function handleClickEvents() {
 
   // ── Suitability: Find Matching Jobs button ─────────────────
   document.querySelector('#tab-suitability .btn-primary')
-    .addEventListener('click', runSuitability);
+    .addEventListener('click', run_job_recommendations);
 }
 
 // ═══════════════════════════════════════════════════════════════

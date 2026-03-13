@@ -36,3 +36,37 @@ export async function get_market_analysis() {
     return data;
 
 }
+
+export async function fetch_job_recommendations(data) {
+    const response = await fetch(`/job_recommendation`,
+        {
+            method:"POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body:JSON.stringify(data)
+
+        }
+    );
+
+    if (!response.ok) {
+        throw new Error("Error fetching data");
+    }
+
+    const response_data = await response.json();
+
+    return response_data;
+}
+
+export async function search_jobs(q){
+    const response = await fetch(`/search?q=${encodeURIComponent(q)}`)
+
+    if (!response.ok) {
+        throw new Error("Error fetching data");
+    }
+
+    const response_data = await response.json();
+
+    return response_data;
+
+}

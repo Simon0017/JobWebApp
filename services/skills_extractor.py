@@ -7,6 +7,8 @@ import json
 from JobPostingWebApp.models.job_model import job_table
 from JobPostingWebApp.models.sql_alchemy_settings import engine
 from sqlalchemy import select
+import io
+from redis import Redis
 
 def extract_skills(val_string:str):
     nlp = spacy.load('en_core_web_lg')
@@ -20,8 +22,8 @@ def extract_skills(val_string:str):
 
 
 class SkillsManager:
-    def __init__(self):
-        self.redis_conn = None
+    def __init__(self,redis_client:Redis):
+        self.redis_conn = redis_client
         self.nlp = None
         self.skill_extractor = None
     
@@ -63,11 +65,14 @@ class SkillsManager:
 
     def retrieve_job_skills_from_redis(self,idx):
         pattern = f"job_skills:{idx}"
-        return json.loads(self.redis_conn.get(pattern))
+        data = self.redis_conn.get(pattern)
+        if data is None:
+            return None
+        return json.loads(data)
     
 
 def pre_server_start():
-    obj = SkillsManager()
+    obj = SkillsManager(redis_connect())
     obj.connect_to_redis()
     obj.init_extractor()
     obj.batch_skills_extraction_redis()
