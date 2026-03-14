@@ -27,8 +27,12 @@ class JobSimilarityAlgo:
             self.rows_data = rows
         
     def encode_jobs(self):
-        self.df = pd.DataFrame(self.rows_data)
-        self.model = SentenceTransformer('all-MiniLM-L6-v2')
+        if self.df is None:
+            self.df = pd.DataFrame(self.rows_data)
+
+        if self.model is None:
+            self.model = SentenceTransformer('all-MiniLM-L6-v2')
+            
         self.df['combined_text'] = self.df["title"] + " " + self.df["field"].fillna('') + self.df['responsibilities'].fillna('') + ' ' + self.df['minimum_requirements'].fillna('') + self.df["company"].fillna('') + self.df["type"]
         embeddings = self.model.encode(self.df['combined_text'].to_list(),convert_to_tensor=True)
 

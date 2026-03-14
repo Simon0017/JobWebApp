@@ -73,7 +73,6 @@ class SkillsManager:
 
 def pre_server_start():
     obj = SkillsManager(redis_connect())
-    obj.connect_to_redis()
     obj.init_extractor()
     obj.batch_skills_extraction_redis()
 

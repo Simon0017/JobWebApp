@@ -8,7 +8,7 @@ from JobPostingWebApp.models.sql_alchemy_settings import engine
 from sqlalchemy import select
 from rapidfuzz import process
 import io
-from JobPostingWebApp.services.skills_extractor import extract_skills,SkillsManager
+from JobPostingWebApp.services.skills_extractor import SkillsManager
 
 class JobSuitablity:
     def __init__(self,candidate_data:dict,redis_client:Redis):
@@ -16,10 +16,11 @@ class JobSuitablity:
         self.education_level = candidate_data.get("education_level","") # label encode the education levels
         self.yrs_experience = int(candidate_data.get("experience",0))
         self.job_type = candidate_data.get("job_type","")
-        self.location = candidate_data.get("location","")
+        self.location = candidate_data.get("location","") or ""
         self.jobs_list = []
         self.redis_conn = redis_client
         self.df = None
+        self.sk_manager = None
 
     def load_df(self):
         df = self.load_from_redis()
@@ -43,13 +44,12 @@ class JobSuitablity:
         return pd.read_json(io.StringIO(df_json)) if df_json is not None else None
     
     def extract_skills(self,job:dict):
-        sk_manager = SkillsManager(self.redis_conn)
-        skills = sk_manager.retrieve_job_skills_from_redis(job.get("id"))
+        if self.sk_manager is None:
+            self.sk_manager = SkillsManager(self.redis_conn)
+
+        skills = self.sk_manager.retrieve_job_skills_from_redis(job.get("id"))
+        
         if skills is None:
-            # val_string = job.get("minimum_requirements")
-            # if val_string is None:
-            #     val_string = ""
-            # skills = extract_skills(val_string)
             skills = []
 
         return skills
@@ -59,25 +59,22 @@ class JobSuitablity:
         score = 0
 
         job_skills = self.extract_skills(job)
-        score += len(set(self.skills) & set(job_skills) )  # & intersetcion op returns skills that match between the user and the job.
-        
+        score += percentage_skills_overlap(cad_skills=self.skills,job_skills=job_skills)
 
-        if self.yrs_experience >= job.get("min_experience",0):
-            score += 1
+        score += percentage_experience(self.yrs_experience,job.get("min_experience",0))
         
         ed_level_from_db = parse_education_levels(job.get("minimum_requirements",""))
         ed_level_encoded = encode_education_levels(ed_level_from_db)
         candidate_ed_level = parse_education_levels(self.education_level)
         candidate_ed_level_encoded = encode_education_levels(candidate_ed_level)
 
-        if candidate_ed_level_encoded >= ed_level_encoded:
-            score += 3
+        score += percentage_ed_level(candidate_ed_level_encoded,ed_level_encoded)
         
-        if self.job_type == job.get("type",""):
-            score +=1
+        if self.job_type.lower() == job.get("type","").lower():
+            score += 5
 
-        if self.location == job.get("location",""):
-            score += 1
+        if self.location.lower() == job.get("location","").lower():
+            score += 5
         
         return score
     
@@ -118,7 +115,7 @@ class JobSuitablity:
             score = self.score_job(job)
 
             if score > 0:
-                job['compat'] = score * 10
+                job['compat'] = score
                 scored_jobs.append(job)
 
         scored_jobs.sort(key=lambda x: x.get('compat', 0), reverse=True)
@@ -156,6 +153,43 @@ def parse_education_levels(val:str):
 
 def convert_df_list(df:pd.DataFrame):
     return df.to_dict(orient="records")
+
+def percentage_skills_overlap(cad_skills,job_skills):
+    cad_skills_set = set([skill.lower() for skill in cad_skills])
+    job_skills_set = set([skill.lower() for skill in job_skills])
+
+    try:
+        overlap = (len(cad_skills_set & job_skills_set) / max(len(job_skills),len(cad_skills))) * 50 # 50% weights for 
+        overlap = round(overlap,1)
+    except ZeroDivisionError:
+        overlap = 0.0
+    
+    return overlap
+
+def percentage_experience(cad_exp,job_exp):
+    # punish scores where the candidate experience is less than the job experience
+    if cad_exp == job_exp:
+        calc = 1
+    else:
+        try:
+            calc = (cad_exp - job_exp) / max(cad_exp,job_exp)
+            calc = round(calc,1)
+        except: # both are zero
+            calc = 0
+
+    return calc * 25 # 25% weight
+
+def percentage_ed_level(cad_lvl,job_lvl):
+    if cad_lvl ==job_lvl:
+        calc = 1
+    else:
+        try:
+            calc = (cad_lvl - job_lvl) / max(cad_lvl,job_lvl)
+            calc = round(calc,1)
+        except: # both are zero
+            calc = 0
+    return calc * 20
+
 
 
 # testing

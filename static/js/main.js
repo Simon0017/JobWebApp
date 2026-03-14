@@ -12,6 +12,7 @@ const SITE_CLASSES = {
 let JOBS = [];
 let JOBS_ACC = [];
 
+
 // ═══════════════════════════════════════════════════════════════
 // STATE
 // ═══════════════════════════════════════════════════════════════
@@ -135,7 +136,7 @@ grid.addEventListener('click', function(e) {
 });
 
 function jobCardHTML(j) {
-  const featured = true;//j.sites.length >= 3;
+  const featured = j.sites.length >= 3;
   const days = daysUntil(j.application_deadline);
   const urgency = days <= 5 ? 'text-danger' : days <= 14 ? '' : 'text-muted';
   return `
@@ -206,10 +207,11 @@ function setView(v) {
 // ═══════════════════════════════════════════════════════════════
 function initEvaluation() {
   const sel = document.getElementById('evalJobSelect');
+  sel.innerHTML = "";
   if (!sel.options.length) {
     JOBS.forEach(j => {
       const o = document.createElement('option');
-      o.value = j.id; o.textContent = `${j.title} — ${j.company}`;
+      o.value = j.id; o.textContent = `${j.title} — ${j.company || ""}`;
       sel.appendChild(o);
     });
   }
@@ -217,6 +219,7 @@ function initEvaluation() {
 }
 
 function openJobEval(id) {
+  initEvaluation()
   switchTab('evaluation', document.querySelectorAll('.nav-item')[1]);
   setTimeout(() => {
     document.getElementById('evalJobSelect').value = id;
@@ -228,7 +231,7 @@ async function loadEvaluation() {
   const id = parseInt(document.getElementById('evalJobSelect').value);
   const j = JOBS.find(x => x.id === id) || JOBS[0];
   
-  const data = get_job_evaluation(Number(id));
+  const data = await get_job_evaluation(Number(id));
   console.log(data);
   
 
@@ -280,18 +283,18 @@ async function loadEvaluation() {
     </button>`;
 
   // Ring (demand based on sites)
-  const demand = data.demand;
+  const demand = Number(data.demand);
   const offset = 282.7 - (282.7 * demand / 100);
   document.getElementById('evalRingFill').setAttribute('stroke-dashoffset', offset);
   document.getElementById('evalRingVal').textContent = demand + '%';
 
   // Knowledge graph
-  // drawKnowledgeGraph(j.kgraph);
+  drawKnowledgeGraph(j.kgraph);
 
   // Similar jobs
-  const similar = JOBS.filter(x => x.id !== j.id && (x.field === j.field || x.type === j.type)).slice(0, 4);
-  document.getElementById('similarJobs').innerHTML = similar.length
-    ? similar.map(s => `
+  // const similar = JOBS.filter(x => x.id !== j.id && (x.field === j.field || x.type === j.type)).slice(0, 4);
+  document.getElementById('similarJobs').innerHTML = data.similar_jobs.length
+    ? data.similar_jobs.map(s => `
       <div class="job-card" onclick="document.getElementById('evalJobSelect').value=${s.id};loadEvaluation();" style="padding:14px;">
         <div class="job-title" style="font-size:0.9rem;">${s.title}</div>
         <div class="job-company">${s.company}</div>
@@ -307,10 +310,21 @@ async function loadEvaluation() {
 }
 
 function drawKnowledgeGraph(j) {
-  const graphData = JSON.parse(j);
+   if (!j) { // null or undefined
+    console.warn("No graph data to draw");
+    return;
+  }
+
+  let graphData;
+  try {
+    graphData = typeof j === "string" ? JSON.parse(j) : j; // parse if string
+  } catch (err) {
+    console.error("Failed to parse JSON:", err, j);
+    return;
+  }
 
   const nodes = graphData.nodes.map(d => ({ id: d.id, type: d.type }));
-  const links = graphData.links.map(l => ({ source: l.source, target: l.target }));
+  const links = graphData.edges.map(l => ({ source: l.source, target: l.target }));
 
   const container = document.getElementById("knowledgeGraph");
   container.innerHTML = "";

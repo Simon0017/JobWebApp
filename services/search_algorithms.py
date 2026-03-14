@@ -7,6 +7,7 @@ import io
 from rapidfuzz import process
 from random import shuffle
 import json
+from JobPostingWebApp.db_selectors.directory_queries import get_companies_linked_with_title_db
 
 
 class SearchAlgorithm:
@@ -94,10 +95,18 @@ def get_job_data_by_title(title:str):
     query = select(job_table).where(job_table.c.title==title)
 
     with engine.connect() as conn:
-        return conn.execute(query).mappings().first()
+        res =  conn.execute(query).mappings().first()
+        res_dict = dict(res)
+        res_dict["sites"] = get_companies_linked_with_title_db(title)
+
+        return res_dict
 
 def get_job_data_by_company(company:str):
     query = select(job_table).where(job_table.c.company==company)
 
     with engine.connect() as conn:
-        return conn.execute(query).mappings().first()
+        res =  conn.execute(query).mappings().first()
+        res_dict = dict(res)
+        res_dict["sites"] = get_companies_linked_with_title_db(res_dict['title'])
+
+        return res_dict
