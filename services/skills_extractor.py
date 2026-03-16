@@ -10,32 +10,36 @@ from sqlalchemy import select
 import io
 from redis import Redis
 
-def extract_skills(val_string:str):
-    nlp = spacy.load('en_core_web_lg')
+NLP = spacy.load('en_core_web_lg')
 
-    skill_extractor  = SkillExtractor(nlp,SKILL_DB,PhraseMatcher)
-
-    annotations = skill_extractor.annotate(val_string)
-    skills = [item["doc_node_value"] for item in annotations["results"]["ngram_scored"]]
-
-    return skills
-
+EXTRACTOR = SkillExtractor(NLP,SKILL_DB,PhraseMatcher)
 
 class SkillsManager:
+    '''Class that extracts skills from text,manages redis skills cache'''
     def __init__(self,redis_client:Redis):
         self.redis_conn = redis_client
         self.nlp = None
         self.skill_extractor = None
     
     def init_extractor(self):
-        self.nlp = spacy.load('en_core_web_lg')
-        self.skill_extractor = SkillExtractor(self.nlp,SKILL_DB,PhraseMatcher)
+        self.nlp = NLP
+        self.skill_extractor = EXTRACTOR
     
     def extract_skills(self,val_string):
-        annotations = self.skill_extractor.annotate(val_string)
-        skills = [item["doc_node_value"] for item in annotations["results"]["ngram_scored"]]
+        if not val_string or not isinstance(val_string,str):
+            return []
+        
+        val_string = val_string.strip()
+        if len(val_string) < 3:
+            return []
+        
+        try:
+            annotations = self.skill_extractor.annotate(val_string)
+            skills = [item["doc_node_value"] for item in annotations["results"]["ngram_scored"]]
 
-        return skills
+            return skills
+        except:
+            return []
 
     def connect_to_redis(self):
         self.redis_conn = redis_connect()
@@ -69,7 +73,18 @@ class SkillsManager:
         if data is None:
             return None
         return json.loads(data)
-    
+
+
+def extract_skills(val_string:str):
+    nlp = spacy.load('en_core_web_lg')
+
+    skill_extractor  = SkillExtractor(nlp,SKILL_DB,PhraseMatcher)
+
+    annotations = skill_extractor.annotate(val_string)
+    skills = [item["doc_node_value"] for item in annotations["results"]["ngram_scored"]]
+
+    return skills
+
 
 def pre_server_start():
     obj = SkillsManager(redis_connect())

@@ -9,6 +9,8 @@ import numpy as np
 import io
 import redis
 
+MODEL = SentenceTransformer('all-MiniLM-L6-v2')
+
 class JobSimilarityAlgo:
     '''Fethes and calculates similarities between jobs'''
     def __init__(self,redis_client:redis.Redis):
@@ -31,7 +33,7 @@ class JobSimilarityAlgo:
             self.df = pd.DataFrame(self.rows_data)
 
         if self.model is None:
-            self.model = SentenceTransformer('all-MiniLM-L6-v2')
+            self.model = MODEL
             
         self.df['combined_text'] = self.df["title"] + " " + self.df["field"].fillna('') + self.df['responsibilities'].fillna('') + ' ' + self.df['minimum_requirements'].fillna('') + self.df["company"].fillna('') + self.df["type"]
         embeddings = self.model.encode(self.df['combined_text'].to_list(),convert_to_tensor=True)
@@ -66,7 +68,7 @@ class JobSimilarityAlgo:
     def cache_df(self,expiration_dur = 24*3600): # one day
         self.redis_conn.set(
             "dataframe_jobs",
-            self.df.to_json(),
+            self.df.to_json(date_format="iso"),
             ex=expiration_dur,
         )
         

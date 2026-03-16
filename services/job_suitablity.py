@@ -159,7 +159,7 @@ def percentage_skills_overlap(cad_skills,job_skills):
     job_skills_set = set([skill.lower() for skill in job_skills])
 
     try:
-        overlap = (len(cad_skills_set & job_skills_set) / max(len(job_skills),len(cad_skills))) * 50 # 50% weights for 
+        overlap = (len(cad_skills_set & job_skills_set) / len(job_skills_set)) * 50 # 50% weights for 
         overlap = round(overlap,1)
     except ZeroDivisionError:
         overlap = 0.0
@@ -172,7 +172,7 @@ def percentage_experience(cad_exp,job_exp):
         calc = 1
     else:
         try:
-            calc = (cad_exp - job_exp) / max(cad_exp,job_exp)
+            calc = (cad_exp - job_exp) / job_exp
             calc = round(calc,1)
         except: # both are zero
             calc = 0
@@ -184,7 +184,7 @@ def percentage_ed_level(cad_lvl,job_lvl):
         calc = 1
     else:
         try:
-            calc = (cad_lvl - job_lvl) / max(cad_lvl,job_lvl)
+            calc = (cad_lvl - job_lvl) / job_lvl
             calc = round(calc,1)
         except: # both are zero
             calc = 0

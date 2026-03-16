@@ -6,6 +6,7 @@ import statistics
 from collections import Counter
 from JobPostingWebApp.services.trend_detector import SkillTrendPipeline
 from redis import Redis
+import datefinder
 
 class MarketAnalysis:
     """Class to perform market analysis"""
@@ -126,12 +127,13 @@ def get_active_jobs_count(date_list:list,today:datetime):
 
 def parse_datetime(val):
     value = val.strip()
-    for fmt in ("%B %d, %Y", "%d/%m/%Y", "%Y-%m-%d","%Y-%m-%d %H:%M:%S"):
-        try:
-            return datetime.strptime(value, fmt)
-        except ValueError:
-            continue
-    return datetime.now() # default
+    try:
+        matches  = list(datefinder.find_dates(value))
+        if matches:
+            match_datetime = matches[0]
+            return match_datetime.replace(tzinfo=None)
+    except:
+        return datetime.now()
 
 
 # testing
