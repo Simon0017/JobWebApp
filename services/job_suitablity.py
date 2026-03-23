@@ -6,7 +6,7 @@ from JobPostingWebApp.models.job_model import job_table
 from redis import Redis
 from JobPostingWebApp.models.sql_alchemy_settings import engine
 from sqlalchemy import select
-from rapidfuzz import process
+from rapidfuzz import process,fuzz
 import io
 from JobPostingWebApp.services.skills_extractor import SkillsManager
 
@@ -59,7 +59,10 @@ class JobSuitablity:
         score = 0
 
         job_skills = self.extract_skills(job)
-        score += percentage_skills_overlap(cad_skills=self.skills,job_skills=job_skills)
+        matched_score,matched_skills = percentage_skills_overlap(cad_skills=self.skills,job_skills=job_skills)
+        score += matched_score
+
+        job["matched"] = matched_skills
 
         score += percentage_experience(self.yrs_experience,job.get("min_experience",0))
         
@@ -70,13 +73,13 @@ class JobSuitablity:
 
         score += percentage_ed_level(candidate_ed_level_encoded,ed_level_encoded)
         
-        if self.job_type.lower() == job.get("type","").lower():
-            score += 5
+        if self.job_type and self.job_type.lower() == str(job.get("type","" )).lower():
+            score += 5.0
 
-        if self.location.lower() == job.get("location","").lower():
-            score += 5
+        if self.location and self.location.lower() == str(job.get("location","" )).lower():
+            score += 5.0
         
-        return score
+        return round(min(score, 100.0), 1)
     
 
     def suggest_best_job_match(self,jobs_list):
@@ -154,61 +157,85 @@ def parse_education_levels(val:str):
 def convert_df_list(df:pd.DataFrame):
     return df.to_dict(orient="records")
 
-def percentage_skills_overlap(cad_skills,job_skills):
-    cad_skills_set = set([skill.lower() for skill in cad_skills])
-    job_skills_set = set([skill.lower() for skill in job_skills])
-
-    try:
-        overlap = (len(cad_skills_set & job_skills_set) / len(job_skills_set)) * 50 # 50% weights for 
-        overlap = round(overlap,1)
-    except ZeroDivisionError:
-        overlap = 0.0
+def percentage_skills_overlap(cad_skills, job_skills):
+    if not job_skills:
+        return 0.0, []
     
-    return overlap
+    cad_skills_set = set(skill.lower() for skill in cad_skills if skill)
+    job_skills_set = set(skill.lower() for skill in job_skills if skill)
 
-def percentage_experience(cad_exp,job_exp):
-    # punish scores where the candidate experience is less than the job experience
-    if cad_exp == job_exp:
-        calc = 1
-    else:
-        try:
-            calc = (cad_exp - job_exp) / job_exp
-            calc = round(calc,1)
-        except: # both are zero
-            calc = 0
+    threshold = 80
+    
+    matched_skills = [
+        skill
+        for skill in cad_skills_set
+        if process.extractOne(skill,job_skills_set,scorer=fuzz.ratio)[1] >= threshold
+    ]
 
-    return calc * 25 # 25% weight
-
-def percentage_ed_level(cad_lvl,job_lvl):
-    if cad_lvl ==job_lvl:
-        calc = 1
-    else:
-        try:
-            calc = (cad_lvl - job_lvl) / job_lvl
-            calc = round(calc,1)
-        except: # both are zero
-            calc = 0
-    return calc * 20
+    overlap_ratio = len(matched_skills) / len(job_skills_set)
+    score = min(overlap_ratio * 50, 50.0)  # max 50 for skills
+    return round(score, 1), list(map(lambda x:str(x).title(),matched_skills))
 
 
+def percentage_experience(cad_exp, job_exp):
+    # experience contributes up to 25 points
+    if job_exp <= 0:
+        return 25.0 if cad_exp >= 0 else 0.0
 
-# testing
+    if cad_exp >= job_exp:
+        return 25.0
+
+    ratio = cad_exp / job_exp
+    return round(ratio * 25, 1)
+
+
+def percentage_ed_level(cad_lvl, job_lvl):
+    # education contributes up to 20 points.
+    if job_lvl <= 0:
+        return 20.0 if cad_lvl >= 0 else 0.0
+
+    if cad_lvl >= job_lvl:
+        return 20.0
+
+    ratio = cad_lvl / job_lvl
+    return round(ratio * 20, 1)
+
+
+
+
+# # testing
 # candidate_data = {
 #     "skills": [
-#         "Python",
-#         "SQL",
-#         "Pandas",
-#         "Redis",
-#         "NetworkX",
+#         "Financial Reporting",
+#         "General Ledger Accounting",
+#         "Accounts Payable",
+#         "Accounts Receivable",
+#         "Bank Reconciliation",
+#         "Tax Preparation",
+#         "Financial Analysis",
+#         "Budgeting and Forecasting",
+#         "Auditing",
+#         "Cost Accounting",
+#         "Payroll Processing",
+#         "Bookkeeping",
+#         "Variance Analysis",
+#         "Compliance and Regulatory Knowledge",
+#         "Internal Controls",
+#         "Cash Flow Management",
+#         "Microsoft Excel",
+#         "Accounting Software (e.g., QuickBooks, SAP)",
 #         "Data Analysis",
-#         "Machine Learning",
-#         "APIs",
-#         "Backend Development"
+#         "Attention to Detail",
+#         "Problem Solving",
+#         "Time Management",
+#         "Communication Skills",
+#         "Organizational Skills",
+#         "Ethics and Integrity"
 #     ],
 #     "education_level": "Bachelor's Degree",   # Bachelor's Degree
-#     "experience": 2,        # estimated early-career developer
-#     "job_type": "Full-time",
-#     "location": "Remote"
+#     "experience": 1,        # estimated early-career developer
+#     "job_type": "Contract",
+#     "location": "Nairobi"
 # }
 
 # from JobPostingWebApp.models.connect_to_redis import redis_connect
@@ -220,8 +247,8 @@ def percentage_ed_level(cad_lvl,job_lvl):
 
 # best_job = candidate.suggest_best_job_match(jobs_list)
 
-# print(f"Suggested job is {best_job[0]}\nScore{best_job[1]}")
+# print(f"Suggested job is: {best_job[0]}\nScore: {best_job[1]}")
 
 # top_suggestions = candidate.suggest_based_on_score(jobs_list)
-# for best_job in top_suggestions:
-#     print(f"Suggested job is {best_job['title']}")
+# for i,best_job in enumerate(top_suggestions):
+#     print(f"{i} --[id:{best_job['id']}] {best_job['title']} -- {best_job['compat']} -- {best_job['matched']}")

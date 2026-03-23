@@ -88,7 +88,7 @@
             <span class="search-icon">🔎</span>
           </div>
         </div>
-        <select class="filter-select" id="filterField" onchange="filterJobs()">
+        <select class="filter-select" id="filterField">
           <option value="">All Fields</option>
           <option>Technology</option>
           <option>Finance</option>
@@ -98,15 +98,16 @@
           <option>Design</option>
           <option>Sales</option>
         </select>
-        <select class="filter-select" id="filterType" onchange="filterJobs()">
+        <select class="filter-select" id="filterType" >
           <option value="">All Types</option>
-          <option>Full-time</option>
-          <option>Part-time</option>
-          <option>Contract</option>
-          <option>Remote</option>
-          <option>Internship</option>
+          <option value="Full Time">Full-time</option>
+          <option value="Part Time">Part-time</option>
+          <option value="Contract">Contract</option>
+          <option value="Remote">Remote</option>
+          <option value="Internship">Internship</option>
+          <option value="Rotational">Rotational</option>
         </select>
-        <select class="filter-select" id="filterSite" onchange="filterJobs()">
+        <select class="filter-select" id="filterSite" >
           <option value="">All Platforms</option>
           <option>MyJobMag</option>
           <option>CorporateStaffing</option>
@@ -115,7 +116,7 @@
           <option>Fuzu</option>
           <option>Pigiame</option>
         </select>
-        <select class="filter-select" id="filterSort" onchange="filterJobs()">
+        <select class="filter-select" id="filterSort">
           <option value="recent">Most Recent</option>
           <option value="deadline">Deadline Soon</option>
           <option value="sites">Most Listed</option>

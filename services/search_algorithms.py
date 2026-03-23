@@ -55,58 +55,71 @@ class SearchAlgorithm:
         if df is None:
             data = self.extract_db_data()
             df = pd.DataFrame(data)
+            self.save_db_to_cache()
 
         titles = df["title"].to_list()
-        best = process.extract(
+        best = process.extract( # fuzzy search for best macthed titles
             text,
             titles,
             limit=limit
         )
 
-        return [get_job_data_by_title(job[0]) for job in best]
+        best_titles = [job(0) for job in best]
+        
+
+        return get_job_data_by_title(best_titles)
 
     def search_companies(self,text,limit=5):
         df = self.load_redis_db()
         if df is None:
             data = self.extract_db_data()
             df = pd.DataFrame(data)
+            self.save_db_to_cache()
 
         companies = df["company"].to_list()
-        best = process.extract(
+        best = process.extract( # fuzzy search
             text,
             companies,
             limit=limit
         )
 
-        return [get_job_data_by_company(job[0]) for job in best]
+        best_matched_companies = [job[0] for job in best]
+
+        return get_job_data_by_company(best_matched_companies)
 
     def aggregate_search(self,text):
         by_title = self.search_titles(text)
         by_company = self.search_companies(text)
 
-        combined_search = [*by_title,*by_company]
+        combined_search = list(set([*by_title,*by_company])) # removing duplicates in the search results
         shuffle(combined_search)  # shuffles list
 
         return combined_search
     
 
 
-def get_job_data_by_title(title:str):
-    query = select(job_table).where(job_table.c.title==title)
+def get_job_data_by_title(titles:list):
+    query = select(job_table).filter(job_table.c.title.in_(titles))
 
     with engine.connect() as conn:
-        res =  conn.execute(query).mappings().first()
-        res_dict = dict(res)
-        res_dict["sites"] = get_companies_linked_with_title_db(title)
+        results =  conn.execute(query).mappings().all()
+        all_res = []
+        for res in results:
+            res_dict = dict(res)
+            res_dict["sites"] = get_companies_linked_with_title_db(res_dict['title'])
+            all_res.append(res)
 
-        return res_dict
+        return all_res
 
-def get_job_data_by_company(company:str):
-    query = select(job_table).where(job_table.c.company==company)
+def get_job_data_by_company(companies:list):
+    query = select(job_table).filter(job_table.c.company.in_(companies))
 
     with engine.connect() as conn:
-        res =  conn.execute(query).mappings().first()
-        res_dict = dict(res)
-        res_dict["sites"] = get_companies_linked_with_title_db(res_dict['title'])
+        results =  conn.execute(query).mappings().all()
+        all_res = []
+        for res in results:
+            res_dict = dict(res)
+            res_dict["sites"] = get_companies_linked_with_title_db(res_dict['title'])
+            all_res.append(res)
 
-        return res_dict
+        return all_res

@@ -27,8 +27,8 @@ class MarketAnalysis:
             self.avg_days_to_deadline = calc_avg_days(rows,self.today)
 
     def get_active_jobs(self):
-        # change this later so that application dealines are maintained
-        # THE  APPLICATIOON DEADLINE FIELD IS NOT A DATE OR TIMESTAMP HERE WE CANNOT DO FILTERING BASED ON THE TIME ON THE SQL
+        # change this later so that application deadlines is evaluated
+        # THE  APPLICATION DEADLINE FIELD IS NOT A DATE OR TIMESTAMP HERE WE CANNOT DO FILTERING BASED ON THE TIME ON THE SQL
         query = select(job_table.c.application_deadline).where(job_table.c.application_deadline.isnot(None))
 
         with engine.connect() as conn:

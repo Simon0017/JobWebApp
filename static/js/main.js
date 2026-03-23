@@ -105,7 +105,7 @@ function renderJobs() {
   const total = filteredJobs.length;
   const totalPages = Math.ceil(total / JOBS_PER_PAGE);
   const start = (currentPage - 1) * JOBS_PER_PAGE;
-  const pageJobs = filteredJobs.slice(start, start + JOBS_PER_PAGE);
+  const pageJobs = filteredJobs;//const pageJobs = filteredJobs.slice(start, start + JOBS_PER_PAGE);
 
   label.innerHTML = `Showing <strong style="color:var(--c2-light)">${total}</strong> jobs`;
   grid.className = currentView === 'list' ? '' : 'grid-auto';
@@ -645,7 +645,7 @@ function suitabilityCardHTML(j) {
   const color = j.compat >= 70 ? 'var(--c2-light)' : j.compat >= 40 ? 'var(--c4)' : 'var(--text-muted)';
   const emoji = j.compat >= 70 ? '🟢' : j.compat >= 40 ? '🟡' : '🔴';
   return `
-  <div class="card" style="border-left:3px solid ${color};">
+  <div class="card" style="border-left:3px solid ${color};" data-id="${j.id}">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div style="flex:1">
         <div class="job-title" style="font-size:0.95rem;cursor:pointer;" onclick="openJobEval(${j.id})">${j.title}</div>
@@ -662,7 +662,7 @@ function suitabilityCardHTML(j) {
     <div style="margin-top:10px;">
       <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:6px;">Matched skills:</div>
       <div style="display:flex;flex-wrap:wrap;gap:5px;">
-        
+        ${j.matched.map(s => `<span class="skill-chip" style="font-size:0.65rem;padding:2px 8px;">${s}</span>`).join('')}
       </div>
     </div>
     <div class="job-meta" style="margin-top:10px;">
@@ -671,6 +671,21 @@ function suitabilityCardHTML(j) {
     </div>
   </div>`;
 }
+
+// event_delegation
+const sutabilityCont = document.getElementById('suitResults');
+
+sutabilityCont.addEventListener('click', function(e) {
+    // Find the closest job-card ancestor of the clicked element
+    const card = e.target.closest('.card');
+    if (!card || !sutabilityCont.contains(card)) return;
+
+    const jobId = card.dataset.id;
+    if (jobId) {
+        openJobEval(jobId);
+    }
+});
+
 
 // ═══════════════════════════════════════════════════════════════
 // HELPERS
