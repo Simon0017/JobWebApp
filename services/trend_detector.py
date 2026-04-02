@@ -1,8 +1,8 @@
 from collections import defaultdict
 from JobPostingWebApp.services.hyperloglog import Hyperloglog
-from JobPostingWebApp.models.connect_to_redis import redis_connect
 import json
-from redis import Redis
+from JobPostingWebApp.models.connect_to_redis import redis_connect
+from JobPostingWebApp.services.skills_extractor import SkillsManager
 
 class SkillTrendDetector:
     def __init__(self,precision = 12):
@@ -49,7 +49,7 @@ class SkillTrendDetector:
 
 
 class SkillTrendPipeline:
-    def __init__(self,redis_client:Redis,precision=12,):
+    def __init__(self,redis_client = None,precision=12,):
         self.redis_client = redis_client
         self.detector = SkillTrendDetector(precision=precision)
 
@@ -72,10 +72,26 @@ class SkillTrendPipeline:
                 except json.JSONDecodeError:
                     continue
         return records
+    
+    def load_data_from_db(self):
+        sk_manager = SkillsManager(self.redis_client)
+        skills_data = sk_manager.extract_skills_data_db()
+        records = []
+        for job_id, skills in skills_data.items():
+            record = {"idx": job_id, "skills": skills}
+            records.append(record)
+        return records
+    
+    def load_data(self):
+        try:
+            return self.load_skills_from_redis()
+        except Exception as e:
+            print(f"Error loading from Redis: {e}")
+            return self.load_data_from_db()
 
     def run(self):
         """Run the full pipeline: Redis -> Detector"""
-        skill_records = self.load_skills_from_redis()
+        skill_records = self.load_data()
         self.detector.process_all(skill_records)
 
     def get_top_skills(self, n=5, by="volume"):

@@ -14,7 +14,7 @@ class SearchAlgorithm:
     ''''Algorithm used to search the db for job based  titles,company or any keyword
     Spacy nlp used,Fuzzy search etc
     '''
-    def __init__(self,redis_client:redis.Redis):
+    def __init__(self,redis_client = None):
         self.redis_conn = redis_client
 
     def save_search(self,data:dict):
@@ -36,18 +36,24 @@ class SearchAlgorithm:
         
 
     def save_db_to_cache(self):
-        df = pd.DataFrame(self.extract_db_data())
-        self.redis_conn.set(
-            "search_df",
-            df.to_json(),
-            ex=24*3600
-        )
+        try:
+            df = pd.DataFrame(self.extract_db_data())
+            self.redis_conn.set(
+                "search_df",
+                df.to_json(),
+                ex=24*3600
+            )
+        except Exception as e:
+            print("Error saving to cache:", e)
 
     def load_redis_db(self):
-        df_json = self.redis_conn.get("search_df")
-        if df_json is None:
+        try:
+            df_json = self.redis_conn.get("search_df")
+            if df_json is None:
+                return None
+            return pd.read_json(io.StringIO(df_json))
+        except:
             return None
-        return pd.read_json(io.StringIO(df_json))
 
 
     def search_titles(self,text,limit = 5):
@@ -64,7 +70,7 @@ class SearchAlgorithm:
             limit=limit
         )
 
-        best_titles = [job(0) for job in best]
+        best_titles = [job[0] for job in best]
         
 
         return get_job_data_by_title(best_titles)

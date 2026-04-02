@@ -1,17 +1,21 @@
-'''Use Bipartite Graphs for matching''' 
-
 import networkx as nx
 import pandas as pd
 from JobPostingWebApp.models.job_model import job_table
-from redis import Redis
+import redis
 from JobPostingWebApp.models.sql_alchemy_settings import engine
 from sqlalchemy import select
 from rapidfuzz import process,fuzz
 import io
 from JobPostingWebApp.services.skills_extractor import SkillsManager
 
+'''
+todo
+Instead of going through all the jobs to find the overlap,look for a time effective solution where the comparison
+is quicker
+'''
+
 class JobSuitablity:
-    def __init__(self,candidate_data:dict,redis_client:Redis):
+    def __init__(self,candidate_data:dict,redis_client=None):
         self.skills = candidate_data.get("skills",[])
         self.education_level = candidate_data.get("education_level","") # label encode the education levels
         self.yrs_experience = int(candidate_data.get("experience",0))
@@ -20,7 +24,7 @@ class JobSuitablity:
         self.jobs_list = []
         self.redis_conn = redis_client
         self.df = None
-        self.sk_manager = None
+        self.sk_manager = SkillsManager(redis_client)
 
     def load_df(self):
         df = self.load_from_redis()
@@ -40,18 +44,20 @@ class JobSuitablity:
             return result.mappings().all()
     
     def load_from_redis(self):
-        df_json = self.redis_conn.get("dataframe_jobs")
-        return pd.read_json(io.StringIO(df_json)) if df_json is not None else None
+        if self.redis_conn is None:
+            return None
+
+        try:
+            df_json = self.redis_conn.get("dataframe_jobs")
+            return pd.read_json(io.StringIO(df_json)) if df_json is not None else None
+        except Exception as e:
+            print(f"Error loading from Redis: {e}")
+            return None
     
     def extract_skills(self,job:dict):
-        if self.sk_manager is None:
-            self.sk_manager = SkillsManager(self.redis_conn)
-
         skills = self.sk_manager.retrieve_job_skills_from_redis(job.get("id"))
-        
         if skills is None:
-            skills = []
-
+            skills = self.sk_manager.extract_skills_for_job(job.get("id"))
         return skills
 
 
@@ -204,51 +210,50 @@ def percentage_ed_level(cad_lvl, job_lvl):
 
 
 # # testing
-# candidate_data = {
-#     "skills": [
-#         "Financial Reporting",
-#         "General Ledger Accounting",
-#         "Accounts Payable",
-#         "Accounts Receivable",
-#         "Bank Reconciliation",
-#         "Tax Preparation",
-#         "Financial Analysis",
-#         "Budgeting and Forecasting",
-#         "Auditing",
-#         "Cost Accounting",
-#         "Payroll Processing",
-#         "Bookkeeping",
-#         "Variance Analysis",
-#         "Compliance and Regulatory Knowledge",
-#         "Internal Controls",
-#         "Cash Flow Management",
-#         "Microsoft Excel",
-#         "Accounting Software (e.g., QuickBooks, SAP)",
-#         "Data Analysis",
-#         "Attention to Detail",
-#         "Problem Solving",
-#         "Time Management",
-#         "Communication Skills",
-#         "Organizational Skills",
-#         "Ethics and Integrity"
-#     ],
-#     "education_level": "Bachelor's Degree",   # Bachelor's Degree
-#     "experience": 1,        # estimated early-career developer
-#     "job_type": "Contract",
-#     "location": "Nairobi"
-# }
+if __name__ == "__main__":
+    candidate_data = {
+        "skills": [
+            "Financial Reporting",
+            "General Ledger Accounting",
+            "Accounts Payable",
+            "Accounts Receivable",
+            "Bank Reconciliation",
+            "Tax Preparation",
+            "Financial Analysis",
+            "Budgeting and Forecasting",
+            "Auditing",
+            "Cost Accounting",
+            "Payroll Processing",
+            "Bookkeeping",
+            "Variance Analysis",
+            "Compliance and Regulatory Knowledge",
+            "Internal Controls",
+            "Cash Flow Management",
+            "Microsoft Excel",
+            "Accounting Software (e.g., QuickBooks, SAP)",
+            "Data Analysis",
+            "Attention to Detail",
+            "Problem Solving",
+            "Time Management",
+            "Communication Skills",
+            "Organizational Skills",
+            "Ethics and Integrity"
+        ],
+        "education_level": "Bachelor's Degree",   # Bachelor's Degree
+        "experience": 1,        # estimated early-career developer
+        "job_type": "Contract",
+        "location": "Nairobi"
+    }
 
-# from JobPostingWebApp.models.connect_to_redis import redis_connect
 
+    candidate = JobSuitablity(candidate_data)
+    df = candidate.load_df()
+    jobs_list = convert_df_list(df)
 
-# candidate = JobSuitablity(candidate_data,redis_connect())
-# df = candidate.load_df()
-# jobs_list = convert_df_list(df)
+    best_job = candidate.suggest_best_job_match(jobs_list)
 
-# best_job = candidate.suggest_best_job_match(jobs_list)
+    print(f"Suggested job is: {best_job[0]}\nScore: {best_job[1]}")
 
-# print(f"Suggested job is: {best_job[0]}\nScore: {best_job[1]}")
-
-# top_suggestions = candidate.suggest_based_on_score(jobs_list)
-# for i,best_job in enumerate(top_suggestions):
-#     print(f"{i} --[id:{best_job['id']}] {best_job['title']} -- {best_job['compat']} -- {best_job['matched']}")
+    top_suggestions = candidate.suggest_based_on_score(jobs_list)
+    for i,best_job in enumerate(top_suggestions):
+        print(f"{i} --[id:{best_job['id']}] {best_job['title']} -- {best_job['compat']} -- {best_job['matched']}")

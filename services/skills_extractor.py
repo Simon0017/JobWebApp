@@ -1,95 +1,59 @@
-import spacy
-from spacy.matcher import PhraseMatcher
-from skillNer.general_params import SKILL_DB
-from skillNer.skill_extractor_class import SkillExtractor
-from JobPostingWebApp.models.connect_to_redis import redis_connect
+from JobPostingWebApp.models.connect_to_redis import redis_connect 
 import json
-from JobPostingWebApp.models.job_model import job_table
-from JobPostingWebApp.models.sql_alchemy_settings import engine
-from sqlalchemy import select
-import io
-from redis import Redis
+from DbIndexing.models.setup import SessionLocal
+from DbIndexing.models.job_postings import JobPostings
+from DbIndexing.models.skills import Skills #NECCESSARY DONT REMOVE THIS UNUSED IMPORT
+from DbIndexing.models.job_embeddings import JobEmbeddings #NECCESSARY DONT REMOVE THIS UNUSED IMPORT
 
-NLP = spacy.load('en_core_web_lg')
-
-EXTRACTOR = SkillExtractor(NLP,SKILL_DB,PhraseMatcher)
 
 class SkillsManager:
-    '''Class that extracts skills from text,manages redis skills cache'''
-    def __init__(self,redis_client:Redis):
+    '''Class extracts skills from the skill index and saves it to redis for quick retrieval'''
+    def __init__(self,redis_client = None):
         self.redis_conn = redis_client
-        self.nlp = None
-        self.skill_extractor = None
-    
-    def init_extractor(self):
-        self.nlp = NLP
-        self.skill_extractor = EXTRACTOR
-    
-    def extract_skills(self,val_string):
-        if not val_string or not isinstance(val_string,str):
-            return []
         
-        val_string = val_string.strip()
-        if len(val_string) < 3:
-            return []
-        
-        try:
-            annotations = self.skill_extractor.annotate(val_string)
-            skills = [item["doc_node_value"] for item in annotations["results"]["ngram_scored"]]
-
-            return skills
-        except:
-            return []
-
-    def connect_to_redis(self):
-        self.redis_conn = redis_connect()
-        print("[Redis] Connection successfull..\n")
     
-    def load_data_from_db(self):
-        query = select(job_table.c.id,job_table.c.minimum_requirements).where(job_table.c.minimum_requirements.isnot(None)).order_by(job_table.c.id)
-
-        with engine.connect() as conn:
-            result  = conn.execute(query)
-            rows = result.fetchall()
-            return rows
+    def extract_skills_data_db(self):
+        with SessionLocal() as session:
+            jobs = session.query(JobPostings).filter(JobPostings.skills.any()).all()
+            skills_data = {}
+            for job in jobs:
+                skills_data[job.id] = [skill.name for skill in job.skills]
+            return skills_data
+        
+    def extract_skills_for_job(self,job_id):
+        with SessionLocal() as session:
+            job = session.query(JobPostings).filter(JobPostings.id == job_id).first()
+            if job and job.skills:
+                return [skill.name for skill in job.skills]
+            return []
     
     def batch_skills_extraction_redis(self):
-        idx_req = self.load_data_from_db()
+        skills_data = self.extract_skills_data_db()
 
-        for row in idx_req:
-            idx = row[0]
-            min_req = row[1]
-            skills = self.extract_skills(min_req)
-            self.save_job_skills_to_redis(idx,skills)
+        for job_id, skills in skills_data.items():
+            self.save_job_skills_to_redis(job_id,skills)
 
     
     def save_job_skills_to_redis(self,idx,skills:list):
+        if self.redis_conn is None:
+            return
+
         pattern = f"job_skills:{idx}"
-        self.redis_conn.set(pattern,json.dumps(skills))
+        try:
+            self.redis_conn.set(pattern,json.dumps(skills))
+        except Exception as e:
+            print(f"Error saving skills to Redis: {e}")
 
     def retrieve_job_skills_from_redis(self,idx):
-        pattern = f"job_skills:{idx}"
-        data = self.redis_conn.get(pattern)
-        if data is None:
+        if self.redis_conn is None:
             return None
-        return json.loads(data)
 
-
-def extract_skills(val_string:str):
-    nlp = spacy.load('en_core_web_lg')
-
-    skill_extractor  = SkillExtractor(nlp,SKILL_DB,PhraseMatcher)
-
-    annotations = skill_extractor.annotate(val_string)
-    skills = [item["doc_node_value"] for item in annotations["results"]["ngram_scored"]]
-
-    return skills
-
-
-def pre_server_start():
-    obj = SkillsManager(redis_connect())
-    obj.init_extractor()
-    obj.batch_skills_extraction_redis()
-
-if __name__ == "__main__":
-    pre_server_start()
+        try:
+            pattern = f"job_skills:{idx}"
+            data = self.redis_conn.get(pattern)
+            if data is None:
+                return None
+            return json.loads(data)
+        except Exception as e:
+            print(f"Error loading skills from Redis: {e}")
+            return None

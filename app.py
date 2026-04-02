@@ -7,8 +7,8 @@ from JobPostingWebApp.models.connect_to_redis import redis_connect
 from JobPostingWebApp.services.search_algorithms import SearchAlgorithm
 
 app = Flask(__name__)
+
 redis_client = redis_connect()
-print('[Redis] Connection successful')
 
 @app.route('/')
 def index():
@@ -72,15 +72,13 @@ def market_analysis():
 def job_recommendation():
     data = request.get_json()
 
-    candidate = JobSuitablity(data,redis_client)
+    candidate = JobSuitablity(data)
     df = candidate.load_df().fillna("")
     jobs_list = convert_df_list(df)
     top_suggestions = candidate.suggest_based_on_score(jobs_list)
-    
     response = {}
 
     response["recommendations"] = top_suggestions
-
     return jsonify(response)
 
 

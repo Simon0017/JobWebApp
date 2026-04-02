@@ -136,7 +136,7 @@ grid.addEventListener('click', function(e) {
 });
 
 function jobCardHTML(j) {
-  const featured = j.sites.length >= 3;
+  const featured = j.sites?.length >= 3;
   const days = daysUntil(j.application_deadline);
   const urgency = days <= 5 ? 'text-danger' : days <= 14 ? '' : 'text-muted';
   return `
@@ -605,7 +605,7 @@ async function run_job_recommendations() {
   }
 
   const candidate_data = {
-      skill:suitSkills,
+      skills:suitSkills,
       experience:experience_years || null,
       job_type:job_type || null,
       location:location || null,
@@ -648,7 +648,7 @@ function suitabilityCardHTML(j) {
   <div class="card" style="border-left:3px solid ${color};" data-id="${j.id}">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div style="flex:1">
-        <div class="job-title" style="font-size:0.95rem;cursor:pointer;" onclick="openJobEval(${j.id})">${j.title}</div>
+        <div class="job-title" style="font-size:0.95rem;cursor:pointer;">${j.title}</div>
         <div class="job-company">${j.company} · ${j.location}</div>
       </div>
       <div style="text-align:center;flex-shrink:0;">
@@ -680,7 +680,8 @@ sutabilityCont.addEventListener('click', function(e) {
     const card = e.target.closest('.card');
     if (!card || !sutabilityCont.contains(card)) return;
 
-    const jobId = card.dataset.id;
+    const jobId = Number(card.dataset.id);
+    
     if (jobId) {
         openJobEval(jobId);
     }
