@@ -70,3 +70,13 @@ export async function search_jobs(q){
     return response_data;
 
 }
+
+export async function get_job_details(id) {
+    const response = await fetch(`/job_details?id=${id}`);
+    if (!response.ok) {
+        throw new Error("Error fetching data");
+    }
+    const data = await response.json();
+    
+    return data;
+}

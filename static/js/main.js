@@ -1,4 +1,4 @@
-import { get_jobs,get_job_evaluation,get_market_analysis,fetch_job_recommendations,search_jobs } from "./fetch_functions.js";
+import { get_jobs,get_job_evaluation,get_market_analysis,fetch_job_recommendations,search_jobs,get_job_details } from "./fetch_functions.js";
 
 // ═══════════════════════════════════════════════════════════════
 // MOCK DATA
@@ -22,6 +22,7 @@ let filteredJobs = [...JOBS];
 let suitSkills = [];
 let currentView = 'grid';
 let chartsInitialized = {};
+let isOpeningJobEval = false;
 
 // ═══════════════════════════════════════════════════════════════
 // SIDEBAR
@@ -57,7 +58,10 @@ async function switchTab(tab, navEl) {
     filterJobs()
   }
   if (tab === 'analysis') initAnalysisCharts();
-  if (tab === 'evaluation') initEvaluation();
+  if (tab === 'evaluation') {
+    initEvaluation();
+    if (!isOpeningJobEval) loadEvaluation();
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -129,10 +133,11 @@ grid.addEventListener('click', function(e) {
     const card = e.target.closest('.job-card');
     if (!card || !grid.contains(card)) return;
 
-    const jobId = card.dataset.id;
-    if (jobId) {
-        openJobEval(jobId); // call your function with the job ID
-    }
+    const jobId = parseInt(card.dataset.id);
+    console.log(jobId);
+    
+    if (!jobId || isNaN(jobId)) return;
+    openJobEval(jobId);
 });
 
 function jobCardHTML(j) {
@@ -210,31 +215,44 @@ function initEvaluation() {
   sel.innerHTML = "";
   if (!sel.options.length) {
     JOBS.forEach(j => {
+      if (!j.id) return;
       const o = document.createElement('option');
       o.value = j.id; o.textContent = `${j.title} — ${j.company || ""}`;
       sel.appendChild(o);
     });
   }
-  loadEvaluation();
 }
 
 function openJobEval(id) {
-  initEvaluation()
+  isOpeningJobEval = true;
   switchTab('evaluation', document.querySelectorAll('.nav-item')[1]);
+  isOpeningJobEval = false;
   setTimeout(() => {
-    document.getElementById('evalJobSelect').value = id;
-    loadEvaluation();
+    loadEvaluation(id);
   }, 50);
 }
 
-async function loadEvaluation() {
-  const id = parseInt(document.getElementById('evalJobSelect').value);
-  const j = JOBS.find(x => x.id === id) || JOBS[0];
-  
-  const data = await get_job_evaluation(Number(id));
-  console.log(data);
-  
+async function loadEvaluation(jobIdOrEvent = null) {
+  let id;
+  if (jobIdOrEvent && typeof jobIdOrEvent === 'object' && jobIdOrEvent.target) {
+    id = parseInt(jobIdOrEvent.target.value);
+  } else if (jobIdOrEvent !== null) {
+    id = parseInt(jobIdOrEvent);
+  } else {
+    id = parseInt(document.getElementById('evalJobSelect').value);
+  }
 
+  if (isNaN(id)) return;
+
+  document.getElementById('evalJobSelect').value = id; // Sync the select
+  let j = JOBS.find(x => x.id === id);
+  if (!j) {
+    // Fetch job details if not in JOBS
+    j = await get_job_details(id);
+  }
+
+  const data = await get_job_evaluation(Number(id));
+  
   document.getElementById('evalTitle').textContent = j.title;
   document.getElementById('evalCompany').textContent = j.company;
 
@@ -247,17 +265,17 @@ async function loadEvaluation() {
   ].join('');
 
   // Sites badges
-  document.getElementById('evalSitesBadges').innerHTML = j.sites.map(s =>
+  document.getElementById('evalSitesBadges').innerHTML = j.sites?.map(s =>
     `<span class="site-badge ${SITE_CLASSES[s]}">${s}</span>`).join('');
-  document.getElementById('evalSitesCount').textContent = `Listed on ${j.sites.length} platform${j.sites.length>1?'s':''}`;
+  document.getElementById('evalSitesCount').textContent = `Listed on ${j.sites?.length || 0} platform${(j.sites?.length || 0) > 1 ? 's' : ''}`;
 
   // Requirements & Responsibilities
-  document.getElementById('evalRequirements').innerHTML = j.minimum_requirements.map(r => `<li>${r}</li>`).join('');
-  document.getElementById('evalResponsibilities').innerHTML = j.responsibilities.map(r => `<li>${r}</li>`).join('');
+  document.getElementById('evalRequirements').innerHTML = j.minimum_requirements?.map(r => `<li>${r}</li>`).join('');
+  document.getElementById('evalResponsibilities').innerHTML = j.responsibilities?.map(r => `<li>${r}</li>`).join('');
 
   // Quick facts
   document.getElementById('evalQuickFacts').innerHTML = [
-    { icon: '📅', label: 'Posted', val: j.date_posted || 'Unavailable'},
+    { icon: '📅', label: 'Posted', val: format_datetime(j.date_posted) || 'Unavailable'},
     { icon: '🏢', label: 'Posted By', val: j.posted_by || "Unavailable"},
     { icon: '📨', label: 'Apply Via', val: j.application_method?.slice(0,30) || 'Unavailable' },
     { icon: '🏷', label: 'Field', val: j.field ||"Unavailable" },
@@ -278,8 +296,9 @@ async function loadEvaluation() {
   // Referral links
   document.getElementById('evalReferrals').innerHTML = `
     <button class="btn btn-outline" style="justify-content:space-between;width:100%;">
-      <span><span class="site-badge ${SITE_CLASSES[0]}" style="margin-right:8px;">${j.url}</span> Apply Now</span>
-      <span>↗</span>
+      <a href="${j.url}" target="_blank" style="display:flex;align-items:center;gap:6px;color:inherit;">
+        <span><span class="site-badge" style="margin-right:8px;">${j.url}</span> Apply Now ↗</span>
+      </a>
     </button>`;
 
   // Ring (demand based on sites)
@@ -295,12 +314,12 @@ async function loadEvaluation() {
   // const similar = JOBS.filter(x => x.id !== j.id && (x.field === j.field || x.type === j.type)).slice(0, 4);
   document.getElementById('similarJobs').innerHTML = data.similar_jobs.length
     ? data.similar_jobs.map(s => `
-      <div class="job-card" onclick="document.getElementById('evalJobSelect').value=${s.id};loadEvaluation();" style="padding:14px;">
+      <div class="job-card" data-id="${s.id}" style="padding:14px;">
         <div class="job-title" style="font-size:0.9rem;">${s.title}</div>
         <div class="job-company">${s.company}</div>
         <div class="job-meta" style="margin-top:8px;">
           <span class="meta-tag type">${s.type}</span>
-          
+          <span class="meta-tag location">${format_datetime(s.application_deadline)}</span>
         </div>
       </div>`).join('')
     : '<div class="text-muted text-sm">No similar jobs found.</div>';
@@ -434,6 +453,22 @@ function drawEvalPlatformChart(j) {
     options: chartOpts('bar')
   });
 }
+
+// event delegation for similar jobs
+const similar_jobs = document.getElementById('similarJobs');
+
+similar_jobs.addEventListener('click', function(e) {
+    // Find the closest job-card ancestor of the clicked element
+    const card = e.target.closest('.job-card');
+    if (!card || !grid.contains(card)) return;
+
+    const jobId = parseInt(card.dataset.id);
+    console.log(jobId);
+    
+    if (!jobId || isNaN(jobId)) return;
+    openJobEval(jobId);
+});
+
 
 // ═══════════════════════════════════════════════════════════════
 // ANALYSIS CHARTS
@@ -680,11 +715,9 @@ sutabilityCont.addEventListener('click', function(e) {
     const card = e.target.closest('.card');
     if (!card || !sutabilityCont.contains(card)) return;
 
-    const jobId = Number(card.dataset.id);
-    
-    if (jobId) {
-        openJobEval(jobId);
-    }
+    const jobId = parseInt(card.dataset.id);
+    if (!jobId || isNaN(jobId)) return;
+    openJobEval(jobId);
 });
 
 
@@ -721,6 +754,13 @@ function showToast(msg) {
   t.classList.add('show');
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+
+function format_datetime(val) {
+  if (!val) return 'Unavailable';
+  const d = new Date(val);
+  return d.toLocaleDateString('en-GB', { day:'numeric', month:'long', year:'numeric' });
 }
 
 // ═══════════════════════════════════════════════════════════════

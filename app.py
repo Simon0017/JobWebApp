@@ -93,5 +93,14 @@ def search_jobs():
 
     return jsonify(response)
 
+
+@app.route("/job_details",methods = ['GET'])
+def get_job_details():
+    job_id = int(request.args.get("id"))
+    search_obj = SearchAlgorithm(redis_client)
+    details = search_obj.get_job_details(job_id)
+
+    return jsonify(details)
+
 if __name__ == "__main__":
     app.run(debug=True)

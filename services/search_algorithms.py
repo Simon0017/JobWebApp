@@ -102,6 +102,20 @@ class SearchAlgorithm:
 
         return combined_search
     
+    def get_job_details(self,job_id):
+        query = select(job_table).filter(job_table.c.id == job_id)
+
+        with engine.connect() as conn:
+            result = conn.execute(query).mappings().first()
+            if result:
+                result = dict(result)
+                result["responsibilities"] = result["responsibilities"].split(",") if result["responsibilities"] else []
+                result["minimum_requirements"] = result["minimum_requirements"].split(",") if result["minimum_requirements"] else []
+                result["sites"] = get_companies_linked_with_title_db(result['title'])
+                return result
+            else:
+                return None
+    
 
 
 def get_job_data_by_title(titles:list):
