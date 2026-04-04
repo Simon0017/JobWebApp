@@ -7,12 +7,9 @@ from sqlalchemy import select
 from rapidfuzz import process,fuzz
 import io
 from JobPostingWebApp.services.skills_extractor import SkillsManager
-
-'''
-todo
-Instead of going through all the jobs to find the overlap,look for a time effective solution where the comparison
-is quicker
-'''
+import heapq
+from concurrent.futures import ThreadPoolExecutor,as_completed
+from itertools import count
 
 class JobSuitablity:
     def __init__(self,candidate_data:dict,redis_client=None):
@@ -70,21 +67,33 @@ class JobSuitablity:
 
         job["matched"] = matched_skills
 
-        score += percentage_experience(self.yrs_experience,job.get("min_experience",0))
+        '''
+        Penalize below  if there is no skills matching
+        '''
+
+        score += percentage_experience(self.yrs_experience,job.get("min_experience",0)) * pernalization_multiplier(job_skills, matched_skills)
         
         ed_level_from_db = parse_education_levels(job.get("minimum_requirements",""))
         ed_level_encoded = encode_education_levels(ed_level_from_db)
         candidate_ed_level = parse_education_levels(self.education_level)
         candidate_ed_level_encoded = encode_education_levels(candidate_ed_level)
 
-        score += percentage_ed_level(candidate_ed_level_encoded,ed_level_encoded)
+        score += percentage_ed_level(candidate_ed_level_encoded,ed_level_encoded) * pernalization_multiplier(job_skills, matched_skills)
         
         if self.job_type and self.job_type.lower() == str(job.get("type","" )).lower():
-            score += 5.0
+            score += 5.0 
 
         if self.location and self.location.lower() == str(job.get("location","" )).lower():
             score += 5.0
         
+        # modify the job dict to include the scores
+        job["skills_score"] = matched_score
+        job["experience_score"] = percentage_experience(self.yrs_experience,job.get("min_experience",0))
+        job["education_score"] = percentage_ed_level(candidate_ed_level_encoded,ed_level_encoded)
+        job["type_score"] = 5.0 if self.job_type and self.job_type.lower() == str(job.get("type","" )).lower() else 0.0
+        job["location_score"] = 5.0 if self.location and self.location.lower() == str(job.get("location","" )).lower() else 0.0
+        job["total_pernalizations"] = score - sum([job["skills_score"], job["experience_score"], job["education_score"], job["type_score"], job["location_score"]])
+
         return round(min(score, 100.0), 1)
     
 
@@ -117,19 +126,36 @@ class JobSuitablity:
 
         return matched_jobs[0]
     
-    def suggest_based_on_score(self,job_lists:list,top_n=5):
-        scored_jobs = []
-
-        for job in job_lists:
+    def suggest_based_on_score(self,job_lists:list,top_n=5,workers = 8):
+        '''
+        Optimized using heaps and parallel workers 
+        Parallel scoring + min-heap = O((n/workers) log k)
+        Best when score_job is I/O-bound or CPU-heavy.
+        '''
+        def score_and_tag(job):
             score = self.score_job(job)
+            return score, job
 
-            if score > 0:
-                job['compat'] = score
-                scored_jobs.append(job)
+        heap = []
+        unique = count() 
 
-        scored_jobs.sort(key=lambda x: x.get('compat', 0), reverse=True)
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            futures = {executor.submit(score_and_tag,job):job for job in job_lists}
 
-        return scored_jobs[:top_n]
+            for future in as_completed(futures):
+                score,job = future.result()
+                if score <=0:
+                    continue
+
+                entry = (score, next(unique), job)   # ← (score, tie, job)
+                
+                if len(heap) < top_n:
+                    heapq.heappush(heap, entry)
+                elif score > heap[0][0]:
+                    heapq.heappush(heap, entry)
+        
+        result = sorted(heap,key=lambda x:x[0],reverse=True)
+        return [{**job, 'compat': score} for score, _, job in result][:top_n]
 
 
 def encode_education_levels(val:str):
@@ -196,17 +222,31 @@ def percentage_experience(cad_exp, job_exp):
 
 
 def percentage_ed_level(cad_lvl, job_lvl):
-    # education contributes up to 20 points.
+    # education contributes up to 15 points.
     if job_lvl <= 0:
-        return 20.0 if cad_lvl >= 0 else 0.0
+        return 15.0 if cad_lvl >= 0 else 0.0
 
     if cad_lvl >= job_lvl:
-        return 20.0
+        return 15.0
 
     ratio = cad_lvl / job_lvl
-    return round(ratio * 20, 1)
+    return round(ratio * 15, 1)
 
 
+def pernalization_multiplier(job_skills, matched_skills):
+    if not job_skills or len(job_skills) == 0:
+        return 1.0
+
+    if not matched_skills or len(matched_skills) == 0:
+        return 0.5  # penalize by 50% if no skills match
+
+    ratio = len(matched_skills) / len(job_skills)
+    if ratio < 0.5:
+        return 0.75  # penalize by 25% if less than 50% skills match
+    elif ratio < 0.8:
+        return 0.9   # penalize by 10% if less than 80% skills match
+    else:
+        return 1.0   # no penalty if 80% or more skills match
 
 
 # # testing
@@ -254,6 +294,13 @@ if __name__ == "__main__":
 
     print(f"Suggested job is: {best_job[0]}\nScore: {best_job[1]}")
 
-    top_suggestions = candidate.suggest_based_on_score(jobs_list)
+    top_suggestions = candidate.suggest_based_on_score(jobs_list,top_n=100)
     for i,best_job in enumerate(top_suggestions):
         print(f"{i} --[id:{best_job['id']}] {best_job['title']} -- {best_job['compat']} -- {best_job['matched']}")
+        print("\nScore breakdown:")
+        print(f"  Skills: {best_job['skills_score']}")
+        print(f"  Experience: {best_job['experience_score']}")
+        print(f"  Education: {best_job['education_score']}")
+        print(f"  Job Type: {best_job['type_score']}")
+        print(f"  Location: {best_job['location_score']}")
+        print(f"  Personalization: {best_job['total_pernalizations']}")

@@ -460,8 +460,6 @@ const similar_jobs = document.getElementById('similarJobs');
 similar_jobs.addEventListener('click', function(e) {
     // Find the closest job-card ancestor of the clicked element
     const card = e.target.closest('.job-card');
-    if (!card || !grid.contains(card)) return;
-
     const jobId = parseInt(card.dataset.id);
     console.log(jobId);
     
@@ -587,6 +585,25 @@ function setMarketanalysisData(data) {
   document.getElementById("plat-stat").innerHTML = data.platforms_tracked;
   document.getElementById("multi-val").innerHTML = data.multi_listed;
   document.getElementById("avg-dl").innerHTML = data.avg_deadline; 
+  document.getElementById("activ-stat-change").innerHTML = ` ${data.active_jobs_change >= 0 ? '↑' : '↓'} ${Math.abs(data.active_jobs_change)} this week`;
+  if (data.platforms_tracked_change <= 0) {
+    document.getElementById("plat-stat-change").classList.add("down");
+  }
+  document.getElementById("plat-stat-change").innerHTML = ` ${data.platforms_tracked_change >= 0 ? '↑' : '↓'} ${Math.abs(data.platforms_tracked_change)} this week`;
+  if (data.multi_listed_change <= 0) {
+    document.getElementById("multi-val-change").classList.add("down");
+  }
+  // document.getElementById("multi-stat-change").innerHTML = ` ${data.multi_listed_change >= 0 ? '↑' : '↓'} ${Math.abs(data.multi_listed_change)} this week`;
+  // if data.multi_listed_change is 0, we can choose to not show any change indicator
+  //  if (data.multi_listed_change <= 0) {
+  //   document.getElementById("multi-val-change").classList.add("down");
+  //   document.getElementById("multi-val-change").innerHTML = ` No change this week`;
+  // }
+  document.getElementById("avg-dl-change").innerHTML = ` ${data.avg_deadline_change >= 0 ? '↑' : '↓'} ${Math.abs(data.avg_deadline_change)} this week`;
+  if (data.avg_deadline_change <= 0) {
+    document.getElementById("avg-dl-change").classList.add("down");
+  }
+
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -700,9 +717,23 @@ function suitabilityCardHTML(j) {
         ${j.matched.map(s => `<span class="skill-chip" style="font-size:0.65rem;padding:2px 8px;">${s}</span>`).join('')}
       </div>
     </div>
-    <div class="job-meta" style="margin-top:10px;">
-      <span class="meta-tag type">${j.type}</span>
-      <span class="meta-tag salary">${j.payment.slice(0,22)}</span>
+    <div style="margin-top:10px;">
+      <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:6px;">Score breakdown:</div>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;">
+        <span class="skill-chip" style="font-size:0.65rem;padding:2px 8px;">Skills: ${j.skills_score}</span>
+        <span class="skill-chip" style="font-size:0.65rem;padding:2px 8px;">Experience: ${j.experience_score}</span>
+        <span class="skill-chip" style="font-size:0.65rem;padding:2px 8px;">Education: ${j.education_score}</span>
+        <span class="skill-chip" style="font-size:0.65rem;padding:2px 8px;">Job Type: ${j.type_score}</span>
+        <span class="skill-chip" style="font-size:0.65rem;padding:2px 8px;">Location: ${j.location_score}</span>
+        <span class="skill-chip" style="font-size:0.65rem;padding:2px 8px;">Pernalized score: ${j.total_pernalizations}</span>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:6px;">Job Meta:</div>
+      <div class="job-meta">
+        <span class="meta-tag type">${j.type}</span>
+        <span class="meta-tag salary">${j.payment.slice(0,22)}</span>
+      </div>
     </div>
   </div>`;
 }

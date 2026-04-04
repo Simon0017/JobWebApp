@@ -58,11 +58,17 @@ def market_analysis():
     response['jobs_per_fields']  = anly_obj.jobs_per_field()
     response['job_types_distr'] = anly_obj.job_types_distribution()
     response['top_skills'] = anly_obj.top_skills()
+    active_jobs_change = anly_obj.active_job_stat_change()
+    platforms_tracked_change = anly_obj.platforms_tracked_change()
+    avg_dl_change = anly_obj.avg_dl_change()
 
     response['active_jobs'] = anly_obj.active_jobs
     response['avg_deadline'] = anly_obj.avg_days_to_deadline
     response['platforms_tracked'] = anly_obj.platforms_tracked
     response['multi_listed'] = anly_obj.multi_listed_jobs
+    response['active_jobs_change'] = active_jobs_change
+    response['platforms_tracked_change'] = platforms_tracked_change
+    response['avg_deadline_change'] = avg_dl_change
 
     return jsonify(response)
 

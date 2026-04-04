@@ -1,9 +1,8 @@
-from datetime import datetime
+from datetime import datetime,timedelta
 from JobPostingWebApp.models.job_model import job_table
 from JobPostingWebApp.models.sql_alchemy_settings import engine
-from sqlalchemy import select,func,distinct
+from sqlalchemy import DateTime, cast, select,func,distinct
 import statistics
-from collections import Counter
 from JobPostingWebApp.services.trend_detector import SkillTrendPipeline
 import datefinder
 
@@ -17,24 +16,33 @@ class MarketAnalysis:
         self.multi_listed_jobs = 0
         self.avg_days_to_deadline = 0
         self.today = datetime.now()
+        self.last_week = self.today - timedelta(days=7)
 
     def get_avg_deadline(self):
-        query = select(job_table.c.application_deadline).where(job_table.c.application_deadline.isnot(None))
+        query = select(
+                func.avg(
+                    func.extract(
+                        "epoch",
+                        cast(job_table.c.application_deadline, DateTime) - func.now()
+                    ) / 86400
+                ).label("avg_days")
+            ).where(
+                job_table.c.application_deadline.isnot(None),
+                cast(job_table.c.application_deadline, DateTime) > func.now()
+            )
+        
+
         with engine.connect() as conn:
-            result = conn.execute(query)
-            rows = result.fetchall()
-            self.avg_days_to_deadline = calc_avg_days(rows,self.today)
+            self.avg_days_to_deadline = round(conn.execute(query).scalar(),2)
 
     def get_active_jobs(self):
-        # change this later so that application deadlines is evaluated
-        # THE  APPLICATION DEADLINE FIELD IS NOT A DATE OR TIMESTAMP HERE WE CANNOT DO FILTERING BASED ON THE TIME ON THE SQL
-        query = select(job_table.c.application_deadline).where(job_table.c.application_deadline.isnot(None))
-
+        query = select(func.count()).where(
+            job_table.c.application_deadline.isnot(None),
+            cast(job_table.c.application_deadline, DateTime) > func.now()
+        )
         with engine.connect() as conn:
-            result = conn.execute(query)
-            rows = result.fetchall()
-            self.active_jobs = get_active_jobs_count(rows,self.today)
-    
+            self.active_jobs = conn.execute(query).scalar()
+
     def get_platforms_tracked(self):
         query = select(func.count(distinct(job_table.c.posted_by))).where(job_table.c.posted_by.isnot(None))
 
@@ -47,47 +55,67 @@ class MarketAnalysis:
         pass
 
     def job_per_platform(self):
-        query = select(job_table.c.posted_by).where(job_table.c.posted_by.isnot(None))
+        query = select(
+                job_table.c.posted_by,
+                func.count(job_table.c.id).label("total_jobs")
+            ).group_by(
+                job_table.c.posted_by
+            ).order_by(
+                func.count(job_table.c.id).desc()
+            )
         with engine.connect() as conn:
             result = conn.execute(query).fetchall()
-
-        posted_by_list = [row[0] for row in result]
-        posted_by_counter = dict(Counter(posted_by_list))
+            posted_by_counter = {row[0]: row[1] for row in result}
 
         return posted_by_counter
 
 
     def jobs_per_field(self,limit = 10):
-        #impliment a similarity check(IMPLEMETED BY THE CHILD CLASS OF JOBSIMILARITY CLASS) here to aggregate similar fields:
-        query = select(job_table.c.field).where(job_table.c.field.isnot(None))
+        query = select(
+                job_table.c.field,
+                func.count(job_table.c.id).label("total_jobs")
+            ).where(
+                job_table.c.field.isnot(None)
+            ).group_by(
+                job_table.c.field
+            ).order_by(
+                func.count(job_table.c.id).desc()
+            ).limit(limit)
         with engine.connect() as conn:
             result = conn.execute(query).fetchall()
-
-        field_list = [row[0] for row in result]
-        field_counter = Counter(field_list)
-        field_counter = dict(field_counter.most_common(limit))
+            field_counter = {row[0]: row[1] for row in result} 
 
         return field_counter
 
     def posting_trend(self):
-        #UNIMPLEMENTED until we figure out the date posted field during scraping
-
-        query = select(job_table.c.date_posted).where(job_table.c.date_posted.isnot(None))
+        query = select(
+                func.date_trunc('day', cast(job_table.c.date_posted, DateTime)).label("date"),
+                func.count(job_table.c.id).label("total_jobs")
+            ).group_by(
+                func.date_trunc('day', cast(job_table.c.date_posted, DateTime))
+            ).order_by(
+                func.date_trunc('day', cast(job_table.c.date_posted, DateTime))
+            )
         with engine.connect() as conn:
             result = conn.execute(query).fetchall()
+            type_counter = {row[0].strftime("%Y-%m-%d"): row[1] for row in result}
 
-        date_list = [row[0] for row in result]
-        date_counter = dict(Counter(date_list))
-
-        return date_counter
-
+        return type_counter
+    
     def job_types_distribution(self):
-        query = select(job_table.c.type).where(job_table.c.type.isnot(None))
+        query = select(
+                job_table.c.type,
+                func.count(job_table.c.id).label("total_jobs")
+            ).where(
+                job_table.c.type.isnot(None)
+            ).group_by(
+                job_table.c.type
+            ).order_by(
+                func.count(job_table.c.id).desc()
+            )
         with engine.connect() as conn:
             result = conn.execute(query).fetchall()
-
-        type_list = [row[0] for row in result]
-        type_counter = dict(Counter(type_list))
+            type_counter = {row[0]: row[1] for row in result} 
 
         return type_counter
 
@@ -100,6 +128,51 @@ class MarketAnalysis:
         return dict(top_skills_unique)
 
 
+    def active_job_stat_change(self):
+        query = select(func.count()).where(
+            job_table.c.application_deadline.isnot(None),
+            cast(job_table.c.application_deadline, DateTime) >= self.last_week
+        )
+
+        with engine.connect() as conn:
+            result = conn.execute(query).scalar()
+            
+        return result - self.active_jobs
+
+    def platforms_tracked_change(self):
+        query = select(
+            func.count(distinct(job_table.c.posted_by))
+            ).where(
+                job_table.c.posted_by.isnot(None),
+                cast(job_table.c.date_posted, DateTime) >= self.last_week)
+
+        with engine.connect() as conn:
+            result = conn.execute(query).scalar()
+            
+        return result - self.platforms_tracked
+
+    def multi_listed_change(self):
+        pass
+    
+    def avg_dl_change(self):
+        query = select(
+                func.avg(
+                    func.extract(
+                        "epoch",
+                        cast(job_table.c.application_deadline, DateTime) - func.now()
+                    ) / 86400
+                ).label("avg_days")
+            ).where(
+                job_table.c.application_deadline.isnot(None),
+                cast(job_table.c.application_deadline, DateTime) > func.now(),
+                cast(job_table.c.date_posted, DateTime) >= self.last_week
+            )
+        
+
+        with engine.connect() as conn:
+            result = round(conn.execute(query).scalar(),2)
+            
+        return result - self.avg_days_to_deadline
 
 
 
@@ -146,6 +219,9 @@ if __name__ == "__main__":
     j_types_distr = analysis.job_types_distribution()
     j_per_field = analysis.jobs_per_field()
     top_skills = analysis.top_skills()
+    active_jobs_change = analysis.active_job_stat_change()
+    platforms_tracked_change = analysis.platforms_tracked_change()
+    avg_dl_change = analysis.avg_dl_change()
 
     print(f"Active jobs:\t{analysis.active_jobs}\n")
     print(f"Avg deaslines:\t{analysis.avg_days_to_deadline}\n")
@@ -159,3 +235,6 @@ if __name__ == "__main__":
     pprint(j_per_field)
     print("\nTop Skills:")
     pprint(top_skills)
+    print(f"\nActive Jobs Change:\t{active_jobs_change}")
+    print(f"Platforms Tracked Change:\t{platforms_tracked_change}")
+    print(f"Avg Deadline Change:\t{avg_dl_change}")
